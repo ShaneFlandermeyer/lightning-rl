@@ -43,7 +43,7 @@ class RLModel(pl.LightningModule):
       self.env = env
 
     # Make the environment a vector environment
-    if (isinstance(env, gym.Env)):
+    if (isinstance(self.env, gym.Env)):
       self.env = DummyVecEnv([lambda: self.env])
 
     self.observation_space = self.env.observation_space
@@ -143,7 +143,7 @@ class RLModel(pl.LightningModule):
     outputs : _type_
         Training step outputs
     """
-    raise NotImplementedError
+    return
 
   def reset(self) -> None:
     """

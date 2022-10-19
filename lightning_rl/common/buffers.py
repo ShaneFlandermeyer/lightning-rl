@@ -29,15 +29,11 @@ class ReplayBuffer():
   def __init__(
       self,
       capacity: int,
-      observation_space: spaces.Space,
-      action_space: spaces.Space,
       n_envs: int = 1,
   ) -> None:
     assert n_envs == 1, "Replay buffer currently only supports single environments"
 
     self.capacity = capacity
-    self.observation_space = observation_space
-    self.action_space = action_space
     self.n_envs = 1
     self.buffer = deque(maxlen=capacity)
 
@@ -70,15 +66,15 @@ class ReplayBuffer():
         A named tuple containing torch tensors for each of the experience components
     """
     indices = np.random.choice(
-        len(self.buffer), size=batch_size, replace=False)
+        len(self.buffer), size=min(batch_size, len(self.buffer)), replace=False)
     states, actions, rewards, next_states, dones = zip(
         *(self.buffer[idx] for idx in indices))
     
     return ExperienceBatch(
-      states=torch.as_tensor(states),
-      actions=torch.as_tensor(actions),
-      rewards=torch.as_tensor(rewards),
-      next_states=torch.as_tensor(next_states),
-      dones=torch.as_tensor(dones)
+      states=torch.as_tensor(np.array(states)),
+      actions=torch.as_tensor(np.array(actions)),
+      rewards=torch.as_tensor(np.array(rewards)),
+      next_states=torch.as_tensor(np.array(next_states)),
+      dones=torch.as_tensor(np.array(dones))
     )
     

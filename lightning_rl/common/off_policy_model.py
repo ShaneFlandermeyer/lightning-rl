@@ -17,7 +17,6 @@ class OffPolicyModel(RLModel):
       replay_buffer_size: int = int(1e6),
       n_warmup_steps: int = 100,
       train_freq: int = 1,
-      n_episodes_per_epoch: int = 1,
       n_gradient_steps: int = 1,
       gamma: float = 0.99,
       squashed_actions: bool = False,
@@ -39,8 +38,6 @@ class OffPolicyModel(RLModel):
         The number of steps to collect before training, by default 100
     train_freq : int, optional
         The number of steps performed between each model update, by default -1
-    n_episodes_per_epoch : int, optional
-        The number of rollouts to collect for each Pytorch Lightning epoch, by default 1
     n_gradient_steps : int, optional
         The number of gradient steps to perform for each rollout, by default 1
     gamma : float, optional
@@ -59,62 +56,57 @@ class OffPolicyModel(RLModel):
     self.replay_buffer_size = replay_buffer_size
     self.n_warmup_steps = n_warmup_steps
     self.train_freq = train_freq
-    self.n_episodes_per_epoch = n_episodes_per_epoch
     self.n_gradient_steps = n_gradient_steps
     self.gamma = gamma
     self.squashed_actions = squashed_actions
 
-    # TODO: Implement the replay buffer
-    self.replay_buffer = ReplayBuffer()
+    self.replay_buffer = ReplayBuffer(capacity=replay_buffer_size)
 
-    def reset(self):
-      """
-      Reset the environment and the step counter
-      """
-      self.state = self.env.reset()
-      self.total_step_count = 0
+  def reset(self):
+    """
+    Reset the environment and the step counter
+    """
+    self.state = self.env.reset()
+    self.total_step_count = 0
 
-    def on_step(self):
-      """
-      Callback for each step taken in the environment
-      """
-      raise NotImplementedError
+  def on_step(self):
+    """
+    Callback for each step taken in the environment
+    """
+    raise NotImplementedError
+  def train_dataloader(self):
+    """
+    Create the dataloader for the model
+    """
+    return OffPolicyDataLoader(self)
 
-    def train_dataloader(self):
-      """
-      Create the dataloader for the model
-      """
-      return OffPolicyDataLoader(self)
-
-    def scale_actions(self,
-                      actions: np.ndarray,
-                      squashed=False) -> Tuple[np.ndarray, np.ndarray]:
-      """
-      Convert the actions to the range required by the action space. If the actions are squashed between [-1, 1], the actions are linearly scaled into the range [low, high]. If the actions are not squashed, they are clipped into the valid range.
-
-      Parameters
-      ----------
-      actions : np.ndarray
-          Input actions
-      squashed : bool, optional
-          If true, actions are assumed to be squashed into the range [-1, 1], by default False
-
-      Returns
-      -------
-      Tuple[np.ndarray, np.ndarray]
-          Valid action values
-      """
-      low, high = self.action_space.low, self.action_space.high
-      center = (low + high) / 2
-      if squashed:
-        actions = center + actions * (high - low) / 2
-      else:
-        actions = np.clip(
-            actions,
-            self.action_space.low,
-            self.action_space.high
-        )
-      return actions
+  def scale_actions(self,
+                    actions: np.ndarray,
+                    squashed=False) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Convert the actions to the range required by the action space. If the actions are squashed between [-1, 1], the actions are linearly scaled into the range [low, high]. If the actions are not squashed, they are clipped into the valid range.
+    Parameters
+    ----------
+    actions : np.ndarray
+        Input actions
+    squashed : bool, optional
+        If true, actions are assumed to be squashed into the range [-1, 1], by default False
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Valid action values
+    """
+    low, high = self.action_space.low, self.action_space.high
+    center = (low + high) / 2
+    if squashed:
+      actions = center + actions * (high - low) / 2
+    else:
+      actions = np.clip(
+          actions,
+          self.action_space.low,
+          self.action_space.high
+      )
+    return actions
 
   def act(
       self,
@@ -179,10 +171,11 @@ class OffPolicyModel(RLModel):
       self.state = next_state
       self.total_step_count += 1
       step_count += 1
+      
+      # Perform any per-step callbacks
+      self.on_step()
 
     self.train()
-
-    self.log('n_steps', self.n_steps, on_step=True, prog_bar=True, logger=True)
 
 
 class OffPolicyDataLoader:
@@ -190,7 +183,8 @@ class OffPolicyDataLoader:
     self.model = model
 
   def __iter__(self):
-    for i in range(self.model.num_rollouts):
-      self.model.collect_rollouts()
-      for j in range(self.n_gradient_steps):
-        yield self.model.replay_buffer.sample()
+    # TODO: I'll need a parameter for how many episodes/steps should be in an epoch
+    # for i in range(self.model.num_rollouts):
+    self.model.collect_experience()
+    for j in range(self.model.n_gradient_steps):
+      yield self.model.replay_buffer.sample(self.model.batch_size)
