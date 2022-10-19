@@ -1,11 +1,12 @@
+from collections import deque
 from typing import Optional, Tuple, Union
 import gym
 import numpy as np
 import pytorch_lightning as pl
 import torch
 from lightning_rl.common.rl_model import RLModel
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
-from lightning_rl.common.buffers import ReplayBuffer, ExperienceBatch
+from stable_baselines3.common.vec_env import VecEnv
+from lightning_rl.common.buffers import ReplayBuffer
 
 
 class OffPolicyModel(RLModel):
@@ -15,8 +16,9 @@ class OffPolicyModel(RLModel):
       env: Union[gym.Env, VecEnv, str],
       batch_size: int = 256,
       replay_buffer_size: int = int(1e6),
-      n_warmup_steps: int = 100,
-      train_freq: int = 1,
+      n_warmup_steps: int = 1000,
+      n_rollouts_per_epoch: int = 1,
+      train_freq: int = 4,
       n_gradient_steps: int = 1,
       gamma: float = 0.99,
       squashed_actions: bool = False,
@@ -36,6 +38,8 @@ class OffPolicyModel(RLModel):
         The maximum number of experiences in the replay buffer, by default int(1e6)
     n_warmup_steps : int, optional
         The number of steps to collect before training, by default 100
+    n_rollouts_per_epoch : int, optional
+        Number of rollouts to collect per pytorch lightning epoch, by default 100
     train_freq : int, optional
         The number of steps performed between each model update, by default -1
     n_gradient_steps : int, optional
@@ -55,6 +59,7 @@ class OffPolicyModel(RLModel):
     self.batch_size = batch_size
     self.replay_buffer_size = replay_buffer_size
     self.n_warmup_steps = n_warmup_steps
+    self.n_rollouts_per_epoch = n_rollouts_per_epoch
     self.train_freq = train_freq
     self.n_gradient_steps = n_gradient_steps
     self.gamma = gamma
@@ -74,6 +79,7 @@ class OffPolicyModel(RLModel):
     Callback for each step taken in the environment
     """
     raise NotImplementedError
+
   def train_dataloader(self):
     """
     Create the dataloader for the model
@@ -154,28 +160,46 @@ class OffPolicyModel(RLModel):
     while step_count < self.train_freq:
       if self.total_step_count < self.n_warmup_steps:
         # Act randomly until we have collected enough warmup experiences
-        action = np.array([self.action_space.sample()])
+        actions = np.array([self.action_space.sample()])
       else:
         # Act based on the current state
-        action = self.act(self.state, deterministic=False)
+        actions = self.act(self.state, deterministic=False)
 
-      next_state, reward, done, info = self.env.step(action)
+      next_states, rewards, dones, infos = self.env.step(actions)
 
       if isinstance(self.action_space, gym.spaces.Discrete):
         # Reshape in case of discrete action
-        action = action.reshape(-1, 1)
+        actions = actions.reshape(-1, 1)
 
       # Store the experience in the replay buffer
-      self.replay_buffer.append(self.state, action, reward, next_state, done)
+      self.replay_buffer.append(
+          self.state, actions, rewards, next_states, dones)
 
-      self.state = next_state
+      self.state = next_states
       self.total_step_count += 1
       step_count += 1
-      
+
       # Perform any per-step callbacks
       self.on_step()
 
     self.train()
+
+  def training_epoch_end(self, outputs) -> None:
+    """
+    Run the evaluation function at the end of the training epoch
+    Override this if you also wish to do other things at the end of a training epoch
+    """
+    # TODO: Find a better way to handle this
+    if self.total_step_count >= self.n_warmup_steps:
+      self.eval()
+      rewards, lengths = self.evaluate(self.eval_env, 5)
+      self.train()
+      self.log_dict({
+          'val_reward_mean': np.mean(rewards),
+          'val_reward_std': np.std(rewards),
+          'val_lengths_mean': np.mean(lengths),
+          'val_lengths_std': np.std(lengths)},
+          prog_bar=True, logger=True)
 
 
 class OffPolicyDataLoader:
@@ -183,8 +207,7 @@ class OffPolicyDataLoader:
     self.model = model
 
   def __iter__(self):
-    # TODO: I'll need a parameter for how many episodes/steps should be in an epoch
-    # for i in range(self.model.num_rollouts):
-    self.model.collect_experience()
-    for j in range(self.model.n_gradient_steps):
-      yield self.model.replay_buffer.sample(self.model.batch_size)
+    for _ in range(self.model.n_rollouts_per_epoch):
+      self.model.collect_experience()
+      for _ in range(self.model.n_gradient_steps):
+        yield self.model.replay_buffer.sample(self.model.batch_size)

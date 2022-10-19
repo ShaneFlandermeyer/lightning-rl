@@ -1,3 +1,5 @@
+import gym
+import numpy as np
 import torch
 from lightning_rl.models import DQN
 import torch.nn as nn
@@ -10,17 +12,17 @@ class Model(DQN):
     super().__init__(**kwargs)
 
     self.qnet = nn.Sequential(
-        nn.Linear(self.observation_space.shape[0], 64),
-        nn.Tanh(),
-        nn.Linear(64, 64),
-        nn.Tanh(),
-        nn.Linear(64, self.action_space.n))
+        nn.Linear(self.observation_space.shape[0], 256),
+        nn.ReLU(),
+        nn.Linear(256, 256),
+        nn.ReLU(),
+        nn.Linear(256, self.action_space.n))
 
     self.qnet_target = copy.deepcopy(self.qnet)
     self.eps = 1.0
     self.eps_init = 1.0
-    self.eps_decay = 5000
-    self.eps_final = 0.0
+    self.eps_decay = 7500
+    self.eps_final = 0.04
     self.save_hyperparameters()
 
   # This is for running the model, returns the Q values given our observation
@@ -59,7 +61,5 @@ class Model(DQN):
 if __name__ == '__main__':
   model = Model(env='CartPole-v1')
   
-  trainer = pl.Trainer(max_epochs=20, gradient_clip_val=0.5, accelerator='gpu')
+  trainer = pl.Trainer(max_epochs=30, gradient_clip_val=0.5, accelerator='gpu')
   trainer.fit(model)
-
-  

@@ -1,10 +1,14 @@
 import inspect
+import warnings
 import pytorch_lightning as pl
 import gym
-from typing import Union, Optional, Tuple, Dict, Any
+from typing import List, Union, Optional, Tuple, Dict, Any
 import numpy as np
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 import torch
+from gym.wrappers.monitor import Monitor
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
+from stable_baselines3.common.env_util import is_wrapped
 
 
 class RLModel(pl.LightningModule):
@@ -45,6 +49,8 @@ class RLModel(pl.LightningModule):
     # Make the environment a vector environment
     if (isinstance(self.env, gym.Env)):
       self.env = DummyVecEnv([lambda: self.env])
+      
+    self.eval_env = self.env
 
     self.observation_space = self.env.observation_space
     self.action_space = self.env.action_space
@@ -130,7 +136,7 @@ class RLModel(pl.LightningModule):
     elif isinstance(self.action_space, (gym.spaces.Discrete,
                                         gym.spaces.MultiDiscrete,
                                         gym.spaces.MultiBinary)):
-      action = action.astype(self.action_space.dtype)
+      action = action.astype(np.int32)
 
     return action
 
@@ -165,6 +171,95 @@ class RLModel(pl.LightningModule):
     self.action_space.seed(seed)
     if self.env:
       self.env.seed(seed)
+      
+  def evaluate(
+    self,
+    eval_env: Union[gym.Env, VecEnv, str],
+    n_eval_episodes: int,
+    deterministic: bool = True,
+    render: bool = False,
+    record: bool = False,
+    record_filename: Optional[str] = None) -> Tuple[List[float], List[int]]:
+    """
+    Evaluate the model in an evaluation environment
+
+    Parameters
+    ----------
+    eval_env : Union[gym.Env, VecEnv, str]
+        Evaluation environment
+    n_eval_episodes : int
+        Number of episodes used for evaluation
+    deterministic : bool, optional
+        If true, actions are chosen deterministically, by default True
+    render : bool, optional
+        If true, renders the environment, by default False
+    record : bool, optional
+        If true, records a video of the episode, by default False
+    record_filename : Optional[str], optional
+        If specified, saves the recorded video to a file with this name, by default None
+
+    Returns
+    -------
+    Tuple[List[float], List[int]]
+        _description_
+    """
+    
+    if isinstance(eval_env, VecEnv):
+            assert eval_env.num_envs == 1, "Cannot run eval_env in parallel. eval_env.num_env must equal 1"
+            
+    # Create the environment
+    if isinstance(eval_env, str):
+      eval_env = gym.make(eval_env)
+
+    # Make the environment a vector environment
+    if (isinstance(eval_env, gym.Env)):
+      eval_env = DummyVecEnv([lambda: eval_env])
+
+    if not is_wrapped(eval_env, Monitor):
+        warnings.warn(
+            "Evaluation environment is not wrapped with a ``Monitor`` wrapper. "
+            "This may result in reporting modified episode lengths and rewards, if other wrappers happen to modify these. "
+            "Consider wrapping environment first with ``Monitor`` wrapper.",
+            UserWarning,
+        )
+        
+    episode_rewards, episode_lengths = [], []
+    if record:
+        recorder = VideoRecorder(env=eval_env, path=record_filename)
+        
+    not_reseted = True
+    for i in range(n_eval_episodes):
+        done = False
+        episode_rewards += [0.0]
+        episode_lengths += [0]
+        # Number of loops here might differ from true episodes
+        # played, if underlying wrappers modify episode lengths.
+        # Avoid double reset, as VecEnv are reset automatically.
+        if not isinstance(eval_env, VecEnv) or not_reseted:
+            obs = eval_env.reset()
+            not_reseted = False
+        while not done:
+            action = self.act(obs, deterministic)
+            obs, reward, done, info = eval_env.step(action)
+            episode_rewards[-1] += reward
+            episode_lengths[-1] += 1
+            if render:
+                eval_env.render()
+            if record:
+                recorder.capture_frame()
+        if is_wrapped(eval_env, Monitor):
+            # Do not trust "done" with episode endings.
+            # Remove vecenv stacking (if any)
+            if isinstance(eval_env, VecEnv):
+                info = info[0]
+            if "episode" in info.keys():
+                # Monitor wrapper includes "episode" key in info if environment
+                # has been wrapped with it. Use those rewards instead.
+                episode_rewards[-1] = info["episode"]["r"]
+                episode_lengths[-1] = info["episode"]["l"]
+    if record:
+        recorder.close()
+    return episode_rewards, episode_lengths
 
 
 if __name__ == '__main__':

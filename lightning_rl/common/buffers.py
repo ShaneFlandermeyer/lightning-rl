@@ -71,10 +71,10 @@ class ReplayBuffer():
         *(self.buffer[idx] for idx in indices))
     
     return ExperienceBatch(
-      states=torch.as_tensor(np.array(states)),
-      actions=torch.as_tensor(np.array(actions)),
+      states=torch.as_tensor(np.array(states)[:, 0, :]),
+      actions=torch.as_tensor(np.array(actions)[:, 0, :]),
       rewards=torch.as_tensor(np.array(rewards)),
-      next_states=torch.as_tensor(np.array(next_states)),
+      next_states=torch.as_tensor(np.array(next_states)[:, 0, :]),
       dones=torch.as_tensor(np.array(dones))
     )
     
