@@ -1,7 +1,7 @@
 from copy import deepcopy
 import gym
 import numpy as np
-from lightning_rl.models.a2c import A2C
+from lightning_rl.models.on_policy_models import A2C
 import torch.nn as nn
 from torch import distributions
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     eval_env = gym.make('CartPole-v1')
     model = Model(env=env,
                   n_rollouts_per_epoch=100,
-                  n_steps_per_rollout=10,
+                  n_steps_per_rollout=5,
                   entropy_coef=0.0)
 
 

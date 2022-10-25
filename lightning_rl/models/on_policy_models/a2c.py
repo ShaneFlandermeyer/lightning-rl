@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union
 import gym
 import torch
 import torch.nn.functional as F
-from lightning_rl.common import OnPolicyModel
+from lightning_rl.models.on_policy_models import OnPolicyModel
 from stable_baselines3.common.vec_env import VecEnv
 from torch import distributions
 
