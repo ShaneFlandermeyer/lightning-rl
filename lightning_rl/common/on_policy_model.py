@@ -23,7 +23,7 @@ class OnPolicyModel(RLModel):
 
   def __init__(self,
                env: Union[gym.Env, VecEnv, str],
-               n_steps_per_update: int,
+               n_steps_per_rollout: int,
                n_rollouts_per_epoch: int,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
@@ -34,14 +34,14 @@ class OnPolicyModel(RLModel):
         seed=seed,
     )
 
-    self.n_steps_per_update = n_steps_per_update
+    self.n_steps_per_rollout = n_steps_per_rollout
     self.n_rollouts_per_epoch = n_rollouts_per_epoch
-    self.batch_size = self.n_steps_per_update * self.n_envs
+    self.batch_size = self.n_steps_per_rollout * self.n_envs
     self.gamma = gamma
     self.gae_lambda = gae_lambda
 
     self.rollout_buffer = RolloutBuffer(
-        buffer_size=n_steps_per_update,
+        buffer_size=n_steps_per_rollout,
         observation_space=self.observation_space,
         action_space=self.action_space,
         gamma=gamma,
@@ -73,7 +73,7 @@ class OnPolicyModel(RLModel):
     assert self._last_obs is not None, "No previous observation was provided"
     with torch.no_grad():
       self.eval()
-      for i in range(self.n_steps_per_update):
+      for step in range(self.n_steps_per_rollout):
 
         # Convert to pytorch tensor, let lightning take care of any GPU transfers
         obs_tensor = torch.as_tensor(self._last_obs).to(
@@ -81,7 +81,7 @@ class OnPolicyModel(RLModel):
         dist, values = self(obs_tensor)
         actions = dist.sample()
         log_probs = dist.log_prob(actions)
-        
+
         clipped_actions = clip_actions(actions, self.action_space)
 
         new_obs, rewards, dones, infos = self.env.step(clipped_actions)
@@ -94,7 +94,6 @@ class OnPolicyModel(RLModel):
           self._last_dones = torch.as_tensor(
               self._last_dones).to(device=obs_tensor.device)
         rewards = torch.as_tensor(rewards).to(device=obs_tensor.device)
-
         self.rollout_buffer.add(
             obs_tensor, actions, rewards, self._last_dones, values, log_probs)
         self._last_obs = new_obs
@@ -103,9 +102,9 @@ class OnPolicyModel(RLModel):
       final_obs = torch.as_tensor(new_obs).to(
           device=self.device, dtype=torch.float32)
       dist, final_values = self(final_obs)
-      samples = self.rollout_buffer.finalize(final_values, torch.as_tensor(
-          dones).to(device=obs_tensor.device, dtype=torch.float32))
-
+      samples = self.rollout_buffer.finalize(
+          final_values,
+          torch.as_tensor(dones).to(device=obs_tensor.device, dtype=torch.float32))
       self.rollout_buffer.reset()
 
     self.train()
@@ -117,7 +116,7 @@ class OnPolicyDataLoader():
     self.model = model
 
   def __iter__(self):
-    for i in range(self.model.n_rollouts_per_epoch):
+    for _ in range(self.model.n_rollouts_per_epoch):
       experiences = self.model.collect_rollouts()
       observations, actions, old_values, old_log_probs, advantages, returns = experiences
       yield RolloutSamples(
@@ -128,9 +127,3 @@ class OnPolicyDataLoader():
           advantages=advantages,
           returns=returns,
       )
-
-
-if __name__ == '__main__':
-  opm = OnPolicyModel(env='CartPole-v0',
-                      n_steps_per_update=32,
-                      n_rollouts_per_epoch=10)

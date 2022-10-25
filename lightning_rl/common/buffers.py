@@ -139,74 +139,26 @@ class RolloutBuffer():
     self.pos = 0
     self.initialized = False
 
-  def add(
-      self,
-      obs: torch.Tensor,
-      action: torch.Tensor,
-      reward: torch.Tensor,
-      done: torch.Tensor,
-      value: torch.Tensor,
-      log_prob: torch.Tensor,
-  ) -> None:
-    """
-    Add experiences to the rollout buffer
-
-    Parameters
-    ----------
-    obs : torch.Tensor
-        Observation
-    action : torch.Tensor
-        Action
-    reward : torch.Tensor
-        Reward
-    done : torch.Tensor
-        End of episode signal
-    value : torch.Tensor
-        Estimated value of the current state, following the current policy
-    log_prob : torch.Tensor
-        Log probability of the actions following the current policy
-    """
-    if not self.initialized:
-      self.observations = torch.zeros(
-          (self.buffer_size, self.n_envs) + self.obs_shape, device=obs.device)
-      self.actions = torch.zeros(
-          (self.buffer_size, self.n_envs, self.action_dim), device=action.device)
-      self.rewards = torch.zeros(
-          (self.buffer_size, self.n_envs), device=reward.device)
-      self.dones = torch.zeros(
-          (self.buffer_size, self.n_envs), device=done.device)
-      self.values = torch.zeros(
-          (self.buffer_size, self.n_envs), device=value.device)
-      self.log_probs = torch.zeros(
-          (self.buffer_size, self.n_envs), device=log_prob.device)
-      self.initialized = True
-
-    self.observations[self.pos] = obs
-    self.actions[self.pos] = action
-    self.rewards[self.pos] = reward
-    self.dones[self.pos] = done
-    self.values[self.pos] = value
-    self.log_probs[self.pos] = log_prob
-    self.pos += 1
-    if self.pos == self.buffer_size:
-        self.full = True
-
-  def finalize(self, last_values: torch.Tensor, last_dones: torch.Tensor) -> None:
+  def finalize(self, last_values: torch.Tensor, last_dones: torch.Tensor) -> RolloutSamples:
     """
     Finalize and compute the returns (sum of discounted rewards) and GAE advantage.
+    Adapted from Stable-Baselines PPO2.
 
-    Uses generalized advantage estimation to compute the advantage. To obtain vanilla advantage (A(s) = R - V(s)) where R is the discounted reward with value bootstrap, set ```gae_lambda=1.0`` during initialization.
+    Uses Generalized Advantage Estimation (https://arxiv.org/abs/1506.02438)
+    to compute the advantage. To obtain vanilla advantage (A(s) = R - V(S))
+    where R is the discounted reward with value bootstrap,
+    set ``gae_lambda=1.0`` during initialization.
 
     Parameters
     ----------
-    last_values : torch.Tensor
-        Estimated value of the current state following the current policy.
-    last_dones : torch.Tensor
-        End of episode signal
+      last_values: (torch.Tensor) estimated value of the current state
+        following the current policy.
+      last_dones: (torch.Tensor) 
+        End of episode signal.
     """
-    assert self.full, "Buffer must be full before finalizing"
+    assert self.full, "Can only finalize RolloutBuffer when RolloutBuffer is full"
 
-    assert last_values.device == self.values.device, "Values function outputs must be on the same device"
+    assert last_values.device == self.values.device, 'All value function outputs must be on same device'
 
     last_gae_lam = 0
     advantages = torch.zeros_like(self.rewards)
@@ -221,6 +173,7 @@ class RolloutBuffer():
           next_values * next_non_terminal - self.values[step]
       last_gae_lam = delta + self.gamma * \
           self.gae_lambda * next_non_terminal * last_gae_lam
+      advantages[step] = last_gae_lam
     returns = advantages + self.values
 
     self.observations = self.observations.view(
@@ -233,3 +186,48 @@ class RolloutBuffer():
     returns = returns.flatten()
 
     return RolloutSamples(self.observations, self.actions, self.values, self.log_probs, advantages, returns)
+
+  def add(
+      self, obs: torch.Tensor, action: torch.Tensor, reward: torch.Tensor, done: torch.Tensor, value: torch.Tensor, log_prob: torch.Tensor
+  ) -> None:
+    """
+    Add a new experience to the buffer.
+    
+    Parameters
+    ----------
+    obs: (torch.tensor) 
+      Observation tensor
+    action: (torch.tensor) 
+      Action tensor
+    reward: (torch.tensor)
+    done: (torch.tensor) 
+      End of episode signal.
+    value: (torch.Tensor) 
+      estimated value of the current state following the current policy.
+    log_prob: (torch.Tensor) 
+      log probability of the action following the current policy.
+    """
+    # Initialise the first time we add something, so we know which device to put things on
+    if not self.initialized:
+      self.observations = torch.zeros(
+          (self.buffer_size, self.n_envs) + self.obs_shape, device=obs.device)
+      self.actions = torch.zeros(
+          (self.buffer_size, self.n_envs, self.action_dim), device=action.device)
+      self.rewards = torch.zeros(
+          (self.buffer_size, self.n_envs), device=reward.device)
+      self.dones = torch.zeros(
+          (self.buffer_size, self.n_envs), device=done.device)
+      self.values = torch.zeros(
+          (self.buffer_size, self.n_envs), device=value.device)
+      self.log_probs = torch.zeros(
+          (self.buffer_size, self.n_envs), device=log_prob.device)
+      self.initialized = True
+    self.observations[self.pos] = obs
+    self.actions[self.pos] = action
+    self.rewards[self.pos] = reward
+    self.dones[self.pos] = done
+    self.values[self.pos] = value
+    self.log_probs[self.pos] = log_prob
+    self.pos += 1
+    if self.pos == self.buffer_size:
+      self.full = True

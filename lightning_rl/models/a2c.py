@@ -36,7 +36,7 @@ class A2C(OnPolicyModel):
 
   def __init__(self,
                env: Union[gym.Env, VecEnv, str],
-               n_steps_per_update: int = 10,
+               n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
@@ -45,10 +45,11 @@ class A2C(OnPolicyModel):
                seed: Optional[int] = None):
     super().__init__(
         env=env,
-        n_steps_per_update=n_steps_per_update,
+        n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
         gamma=gamma,
         gae_lambda=gae_lambda,
+        seed=seed
     )
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
