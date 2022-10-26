@@ -60,7 +60,7 @@ if __name__ == '__main__':
     eval_env = gym.make('CartPole-v1')
     model = Model(env=env,
                   n_rollouts_per_epoch=100,
-                  n_steps_per_rollout=5,
+                  n_steps_per_rollout=8,
                   entropy_coef=0.0)
 
 
@@ -69,7 +69,8 @@ if __name__ == '__main__':
     start = time.time()
     trainer = pl.Trainer(max_epochs=15, 
                          gradient_clip_val=0.5,
-                         accelerator='cpu')
+                         accelerator='cpu',
+                         strategy='ddp',)
     trainer.fit(model)
         
     end = time.time()
