@@ -1,7 +1,7 @@
 from typing import Optional, Union
 import gym
 import torch
-from lightning_rl.common import OffPolicyModel
+from lightning_rl.models.off_policy_models import OffPolicyModel
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 from gym import spaces
 import torch.nn.functional as F
@@ -120,11 +120,10 @@ class DQN(OffPolicyModel):
       target_q = torch.max(target_q, dim=1, keepdims=True)[0]
       target_q = batch.rewards + self.gamma * target_q
       target_q[batch.dones] = 0
-      
+
     # Compute the Q-values estimated by the network
     current_q = self.forward(batch.states)
     current_q = torch.gather(current_q, dim=1, index=batch.actions.long())
-    
+
     loss = F.smooth_l1_loss(current_q, target_q)
     return loss
-    
