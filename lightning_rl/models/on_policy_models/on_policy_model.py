@@ -6,7 +6,7 @@ import torch
 from lightning_rl.common import RLModel
 from stable_baselines3.common.vec_env import VecEnv
 
-from lightning_rl.common.buffers import RolloutBuffer, RolloutSamples
+from lightning_rl.common.buffers import RolloutBuffer, RolloutBatch
 from lightning_rl.models.off_policy_models.off_policy_model import OffPolicyDataLoader
 from lightning_rl.common.utils import clip_actions
 
@@ -41,7 +41,7 @@ class OnPolicyModel(RLModel):
     self.gae_lambda = gae_lambda
 
     self.rollout_buffer = RolloutBuffer(
-        buffer_size=n_steps_per_rollout,
+        n_rollout_steps=n_steps_per_rollout,
         observation_space=self.observation_space,
         action_space=self.action_space,
         gamma=gamma,
@@ -65,7 +65,7 @@ class OnPolicyModel(RLModel):
     """
     return OnPolicyDataLoader(self)
 
-  def collect_rollouts(self) -> RolloutSamples:
+  def collect_rollouts(self) -> RolloutBatch:
     """
     Collect rollouts and put them into the RolloutBuffer
     """
@@ -73,29 +73,37 @@ class OnPolicyModel(RLModel):
     assert self._last_obs is not None, "No previous observation was provided"
     with torch.no_grad():
       self.eval()
-      for step in range(self.n_steps_per_rollout):
+      while not self.rollout_buffer.full():
 
         # Convert to pytorch tensor, let lightning take care of any GPU transfers
         obs_tensor = torch.as_tensor(self._last_obs).to(
             device=self.device, dtype=torch.float32)
+        if not torch.is_tensor(self._last_dones):
+          self._last_dones = torch.as_tensor(
+              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
+
+        # Compute actions and log-probabilities
         dist, values = self(obs_tensor)
         actions = dist.sample()
         log_probs = dist.log_prob(actions)
-
         clipped_actions = clip_actions(actions, self.action_space)
 
+        # Perform actions and update the environment
         new_obs, rewards, dones, infos = self.env.step(clipped_actions)
-
         if isinstance(self.action_space, gym.spaces.Discrete):
           # Reshape in case of discrete actions
           actions = actions.view(-1, 1)
 
-        if not torch.is_tensor(self._last_dones):
-          self._last_dones = torch.as_tensor(
-              self._last_dones).to(device=obs_tensor.device)
-        rewards = torch.as_tensor(rewards).to(device=obs_tensor.device)
+        rewards = torch.as_tensor(rewards).to(device=obs_tensor.device, dtype=torch.float32)
+
+        # Store the data in the rollout buffer
         self.rollout_buffer.add(
-            obs_tensor, actions, rewards, self._last_dones, values, log_probs)
+            obs_tensor,
+            actions,
+            rewards,
+            self._last_dones,
+            values,
+            log_probs)
         self._last_obs = new_obs
         self._last_dones = dones
 
@@ -117,13 +125,6 @@ class OnPolicyDataLoader():
 
   def __iter__(self):
     for _ in range(self.model.n_rollouts_per_epoch):
-      experiences = self.model.collect_rollouts()
-      observations, actions, old_values, old_log_probs, advantages, returns = experiences
-      yield RolloutSamples(
-          observations=observations,
-          actions=actions,
-          old_values=old_values,
-          old_log_probs=old_log_probs,
-          advantages=advantages,
-          returns=returns,
-      )
+      experience_batch = self.model.collect_rollouts()
+      yield experience_batch
+

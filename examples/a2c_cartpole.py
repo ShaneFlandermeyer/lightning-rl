@@ -67,7 +67,7 @@ if __name__ == '__main__':
     import time
 
     start = time.time()
-    trainer = pl.Trainer(max_epochs=20, 
+    trainer = pl.Trainer(max_epochs=15, 
                          gradient_clip_val=0.5,
                          accelerator='cpu')
     trainer.fit(model)
