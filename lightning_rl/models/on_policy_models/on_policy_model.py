@@ -42,8 +42,6 @@ class OnPolicyModel(RLModel):
 
     self.rollout_buffer = RolloutBuffer(
         n_rollout_steps=n_steps_per_rollout,
-        observation_space=self.observation_space,
-        action_space=self.action_space,
         gamma=gamma,
         gae_lambda=gae_lambda,
         n_envs=self.n_envs

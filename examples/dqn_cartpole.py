@@ -21,7 +21,7 @@ class Model(DQN):
     self.qnet_target = copy.deepcopy(self.qnet)
     self.eps = 1.0
     self.eps_init = 1.0
-    self.eps_decay = 7500
+    self.eps_decay = 5000
     self.eps_final = 0.04
     self.save_hyperparameters()
 
@@ -61,5 +61,12 @@ class Model(DQN):
 if __name__ == '__main__':
   model = Model(env='CartPole-v1')
   
-  trainer = pl.Trainer(max_epochs=30, gradient_clip_val=0.5, accelerator='gpu')
+  trainer = pl.Trainer(max_epochs=20, 
+                       gradient_clip_val=0.5, 
+                       accelerator='gpu', 
+                       devices=2, 
+                       strategy='ddp')
   trainer.fit(model)
+  
+  # rewards = model.evaluate(eval_env, n_eval_episodes=20)
+    # print(np.mean(rewards))

@@ -55,7 +55,7 @@ class Model(A2C):
       
 if __name__ == '__main__':
     env = make_vec_env('CartPole-v1', 
-                       n_envs=8, 
+                       n_envs=1, 
                        vec_env_cls=SubprocVecEnv)
     eval_env = gym.make('CartPole-v1')
     model = Model(env=env,
@@ -69,7 +69,8 @@ if __name__ == '__main__':
     start = time.time()
     trainer = pl.Trainer(max_epochs=15, 
                          gradient_clip_val=0.5,
-                         accelerator='cpu',
+                         accelerator='gpu',
+                         devices=1,
                          strategy='ddp',)
     trainer.fit(model)
         

@@ -113,30 +113,26 @@ class RolloutBuffer():
   Parameters
   ----------
 
-  :param n_rollout_steps: (int) Max number of element in the buffer
-  :param observation_space: (spaces.Space) Observation space
-  :param action_space: (spaces.Space) Action space
-  :param device: (torch.device)
-  :param gae_lambda: (float) Factor for trade-off of bias vs variance for Generalized Advantage Estimator
-      Equivalent to classic advantage when set to 1.
-  :param gamma: (float) Discount factor
-  :param n_envs: (int) Number of parallel environments
+  n_rollout_steps: (int) 
+    Max number of element in the buffer
+  device: (torch.device)
+    Device containing all experience tensors
+  gae_lambda: (float) 
+    Factor for trade-off of bias vs variance for Generalized Advantage Estimator. Equivalent to classic advantage when set to 1.
+  gamma: (float) 
+    Discount factor
+  n_envs: (int) 
+    Number of parallel environments
   """
 
   def __init__(
       self,
       n_rollout_steps: int,
-      observation_space: spaces.Space,
-      action_space: spaces.Space,
       gamma: float = 0.99,
       gae_lambda: float = 1.0,
       n_envs: int = 1,
   ) -> None:
     self.n_rollout_steps = n_rollout_steps
-    self.observation_space = observation_space
-    self.action_space = action_space
-    self.obs_shape = get_obs_shape(observation_space)
-    self.action_dim = get_action_dim(action_space)
     self.gae_lambda = gae_lambda
     self.gamma = gamma
     self.n_envs = n_envs
@@ -224,8 +220,8 @@ class RolloutBuffer():
     assert last_values.device == values.device, 'All value function outputs must be on same device'
 
     # Compute advantages and returns
-    last_gae_lam = 0
     advantages = torch.zeros_like(rewards)
+    last_advantage_estimate = 0
     for step in reversed(range(self.n_rollout_steps)):
       if step == self.n_rollout_steps - 1:
         next_non_terminal = 1.0 - last_dones
@@ -235,9 +231,9 @@ class RolloutBuffer():
         next_values = values[step + 1]
       delta = rewards[step] + self.gamma * \
           next_values * next_non_terminal - values[step]
-      last_gae_lam = delta + self.gamma * \
-          self.gae_lambda * next_non_terminal * last_gae_lam
-      advantages[step] = last_gae_lam
+      advantages[step]  = delta + self.gamma * \
+          self.gae_lambda * next_non_terminal * last_advantage_estimate
+      last_advantage_estimate = advantages[step]
     returns = advantages + values
 
     # Reshape experience tensors
