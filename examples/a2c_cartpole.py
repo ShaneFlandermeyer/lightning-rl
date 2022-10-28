@@ -4,11 +4,12 @@ import numpy as np
 from lightning_rl.models.on_policy_models import A2C
 import torch.nn as nn
 from torch import distributions
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 import torch
 import pytorch_lightning as pl
 from stable_baselines3.common.evaluation import evaluate_policy
+from lightning_rl.common.layers import NoisyLinear
 
 
 class Model(A2C):
@@ -17,19 +18,19 @@ class Model(A2C):
         super(Model, self).__init__(**kwargs)
 
         self.actor = nn.Sequential(
-            nn.Linear(self.observation_space.shape[0], 128),
+            nn.Linear(self.observation_space.shape[0], 64),
             nn.Tanh(),
-            nn.Linear(128, 128),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(128, self.action_space.n),
+            nn.Linear(64, self.action_space.n),
             nn.Softmax(dim=1))
 
         self.critic = nn.Sequential(
-            nn.Linear(self.observation_space.shape[0], 128),
+            nn.Linear(self.observation_space.shape[0], 64),
             nn.Tanh(),
-            nn.Linear(128, 128),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(128, 1))
+            nn.Linear(64, 1))
 
         self.save_hyperparameters()
 
@@ -50,32 +51,26 @@ class Model(A2C):
         return out.cpu().numpy()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=3e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=7e-4, eps=1e-5)
         return optimizer
       
 if __name__ == '__main__':
     env = make_vec_env('CartPole-v1', 
-                       n_envs=1, 
+                       n_envs=8, 
                        vec_env_cls=SubprocVecEnv)
     eval_env = gym.make('CartPole-v1')
     model = Model(env=env,
+                  eval_env=eval_env,
                   n_rollouts_per_epoch=100,
-                  n_steps_per_rollout=8,
-                  entropy_coef=0.0)
-
-
-    import time
-
-    start = time.time()
-    trainer = pl.Trainer(max_epochs=15, 
+                  n_steps_per_rollout=20,
+                  normalize_advantage=True,
+                  gae_lambda=1.0,
+                  seed=np.random.randint(0, 10000)
+                  )
+    trainer = pl.Trainer(max_epochs=5, 
                          gradient_clip_val=0.5,
                          accelerator='gpu',
                          devices=1,
                          strategy='ddp',)
     trainer.fit(model)
-        
-    end = time.time()
-    print(end - start)
     
-    rewards = model.evaluate(eval_env, n_eval_episodes=20)
-    print(np.mean(rewards))

@@ -42,8 +42,8 @@ class RolloutExperience(NamedTuple):
 class RolloutBatch(NamedTuple):
   observations: torch.Tensor
   actions: torch.Tensor
-  old_values: torch.Tensor
-  old_log_probs: torch.Tensor
+  values: torch.Tensor
+  log_probs: torch.Tensor
   advantages: torch.Tensor
   returns: torch.Tensor
 
@@ -250,7 +250,7 @@ class RolloutBuffer():
     return RolloutBatch(
         observations=observations,
         actions=actions,
-        old_values=values,
-        old_log_probs=log_probs,
+        values=values,
+        log_probs=log_probs,
         advantages=advantages,
         returns=returns)

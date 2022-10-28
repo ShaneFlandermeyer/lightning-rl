@@ -35,6 +35,8 @@ class RLModel(pl.LightningModule):
   def __init__(
       self,
       env: Union[gym.Env, VecEnv, str],
+      eval_env: Optional[Union[gym.Env, VecEnv, str]] = None,
+      n_eval_episodes: int = 5,
       support_multi_env: bool = False,
       seed: Optional[int] = None
   ) -> None:
@@ -47,10 +49,11 @@ class RLModel(pl.LightningModule):
       self.env = env
 
     # Make the environment a vector environment
-    if (isinstance(self.env, gym.Env)):
+    if isinstance(self.env, gym.Env):
       self.env = DummyVecEnv([lambda: self.env])
       
-    self.eval_env = self.env
+    self.eval_env = eval_env
+    self.n_eval_episodes = n_eval_episodes
 
     self.observation_space = self.env.observation_space
     self.action_space = self.env.action_space
@@ -260,6 +263,24 @@ class RLModel(pl.LightningModule):
     if record:
         recorder.close()
     return episode_rewards, episode_lengths
+  
+  def training_epoch_end(self, outputs) -> None:
+    """
+    Run the evaluation function at the end of the training epoch
+    Override this if you also wish to do other things at the end of a training epoch
+    """
+    # TODO: Find a better way to handle this
+    if self.eval_env is not None:
+      self.eval()
+      rewards, lengths = self.evaluate(self.eval_env, self.n_eval_episodes, deterministic=True)
+      self.train()
+      self.log_dict({
+          'val_reward_mean': np.mean(rewards),
+          'val_reward_std': np.std(rewards),
+          'val_lengths_mean': np.mean(lengths),
+          'val_lengths_std': np.std(lengths)},
+          prog_bar=True, logger=True, sync_dist=True)
+
 
 
 if __name__ == '__main__':

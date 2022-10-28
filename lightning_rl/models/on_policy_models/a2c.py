@@ -36,6 +36,7 @@ class A2C(OnPolicyModel):
 
   def __init__(self,
                env: Union[gym.Env, VecEnv, str],
+               eval_env: Optional[Union[gym.Env, VecEnv, str]] = None,
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
                gamma: float = 0.99,
@@ -43,14 +44,18 @@ class A2C(OnPolicyModel):
                value_coef: float = 0.5,
                entropy_coef: float = 0.0,
                normalize_advantage: bool = True,
-               seed: Optional[int] = None):
+               seed: Optional[int] = None,
+               **kwargs,
+               ) -> None:
     super().__init__(
         env=env,
+        eval_env=eval_env,
         n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
         gamma=gamma,
         gae_lambda=gae_lambda,
-        seed=seed
+        seed=seed,
+        **kwargs,
     )
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
@@ -77,7 +82,7 @@ class A2C(OnPolicyModel):
     """
     Update step for A2C.
     """
-    dist, values = self(batch.observations)
+    dist, values = self.forward(batch.observations)
     log_probs = dist.log_prob(batch.actions)
     values = values.flatten()
 
