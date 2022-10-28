@@ -42,6 +42,7 @@ class A2C(OnPolicyModel):
                gae_lambda: float = 1.0,
                value_coef: float = 0.5,
                entropy_coef: float = 0.0,
+               normalize_advantage: bool = True,
                seed: Optional[int] = None):
     super().__init__(
         env=env,
@@ -53,6 +54,7 @@ class A2C(OnPolicyModel):
     )
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
+    self.normalize_advantage = normalize_advantage
 
   def forward(self,
               x: torch.Tensor) -> Tuple[distributions.Distribution, torch.Tensor]:
@@ -80,7 +82,8 @@ class A2C(OnPolicyModel):
     values = values.flatten()
 
     advantages = batch.advantages.detach()
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    if self.normalize_advantage:
+      advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     policy_loss = -(advantages * log_probs).mean()
     value_loss = F.mse_loss(batch.returns.detach(), values)
