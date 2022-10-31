@@ -12,6 +12,9 @@ class ICM(pl.LightningModule):
 
   In Burda2018, the IDF and forward dynamics networks were heads on top of the embedding network with extra fully-connected layers of dimensionality 512.
 
+
+  TODO: Need to compute the losses for the forward/inverse model in a training_step function.
+  
   See: https://arxiv.org/pdf/1705.05363.pdf
   """
 
@@ -52,6 +55,7 @@ class ICM(pl.LightningModule):
     """
     raise NotImplementedError
 
+  @torch.no_grad()
   def compute_intrinsic_reward(self, 
                                state: torch.Tensor, 
                                next_state: torch.Tensor, 
@@ -76,11 +80,10 @@ class ICM(pl.LightningModule):
     
     # Convert action into one-hot encoding
     # TODO: This only works for discrete action spaces
-    # TODO: This assumes a non-vectorized environment
     action_onehot = torch.FloatTensor(
-        int(action.item()), self.action_space.n).to(self.device)
+        len(action), self.action_space.n).to(self.device)
     action_onehot.zero_()
-    action_onehot.scatter_(1, action, 1)
+    action_onehot.scatter_(1, action.view(-1, 1), 1)
 
     # Convert the actual next state and predicted next state in the embedded feature space, along with the action predicted by the inverse model.
     actual_next_state_feature, predicted_next_state_feature, predicted_action = self.forward(
@@ -88,6 +91,6 @@ class ICM(pl.LightningModule):
 
     # Compute intrinsic reward
     intrinsic_reward = self.eta * \
-        F.MSELoss(actual_next_state_feature,
+        F.mse_loss(actual_next_state_feature,
                   predicted_next_state_feature, reduction='none').mean(dim=-1)
     return intrinsic_reward.cpu().numpy()

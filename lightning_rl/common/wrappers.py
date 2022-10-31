@@ -1,10 +1,12 @@
 import gym
-from lightning_rl.models import ICM
+from lightning_rl.models.icm import ICM
+from typing import Union
 import numpy as np
+import cv2
 import torch
 
 
-class CuriosityWrapper(gym.Wrapper):
+class CuriosityRewardWrapper(gym.Wrapper):
   """
   Generates an additional intrinsic reward using an intrinsic curiosity module and adds it to the extrinsic reward from the environment.
 
@@ -12,24 +14,33 @@ class CuriosityWrapper(gym.Wrapper):
   """
 
   def __init__(self,
-               env: gym.Env,
-               icm: ICM) -> None:
+               env: Union[gym.Env, gym.vector.VectorEnv, str]) -> None:
     super().__init__(env)
-    self.icm = icm
-    self.state = torch.as_tensor(
-        self.env.reset(), dtype=torch.float32).to(self.icm.device)
+    
+    # Create the gym environment
+    if isinstance(env, str):
+      self.env = gym.make(env)
+    else:
+      self.env = env
 
-  def step(self, action):
+    # Make the environment a vector environment
+    if not isinstance(self.env, gym.vector.VectorEnv):
+      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
+    
+    self.state = self.env.reset()
+
+  def step(self, action, icm: ICM):
     next_state, extrinsic_reward, done, info = self.env.step(action)
 
-    action = torch.as_tensor(action, dtype=torch.float32).to(self.icm.device)
-    state = torch.as_tensor(
-        self.state, dtype=torch.int64).to(self.icm.device)
-    next_state = torch.as_tensor(
-        next_state, dtype=torch.float32).to(self.icm.device)
-    
-    intrinsic_reward = self.icm.compute_intrinsic_reward(
-        state, next_state, action)
+    action_tensor = torch.as_tensor(
+        action, dtype=torch.int64).to(icm.device)
+    state_tensor = torch.as_tensor(
+        self.state, dtype=torch.float32).to(icm.device)
+    next_state_tensor = torch.as_tensor(
+        next_state, dtype=torch.float32).to(icm.device)
+
+    intrinsic_reward = icm.compute_intrinsic_reward(
+        state_tensor, next_state_tensor, action_tensor)
     reward = extrinsic_reward + intrinsic_reward
     self.state = next_state
     return next_state, reward, done, info
@@ -49,3 +60,19 @@ class ImageToPytorch(gym.ObservationWrapper):
 
   def observation(self, observation):
     return np.moveaxis(observation, 2, 0)
+
+class ProcessFrame84(gym.ObservationWrapper):
+  """
+  Downsample the image to 84x84 pixels and convert it to a grayscale image.
+  """
+
+  def __init__(self, env):
+    super().__init__(env)
+    self.observation_space = gym.spaces.Box(
+        low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
+
+  def observation(self, frame):
+    frame = frame[34:34+160, :160]
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    frame = cv2.resize(frame, (84, 84), interpolation=cv2.INTER_AREA)
+    return frame[:, :, None]

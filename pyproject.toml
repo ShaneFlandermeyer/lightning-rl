@@ -8,6 +8,7 @@ authors = ["ShaneFlandermeyer <shaneflandermeyer@gmail.com>"]
 python = "^3.10"
 pytorch-lightning = "^1.7.7"
 stable-baselines3 = "^1.6.2"
+opencv-python = "^4.6.0"
 
 [tool.poetry.dev-dependencies]
 
