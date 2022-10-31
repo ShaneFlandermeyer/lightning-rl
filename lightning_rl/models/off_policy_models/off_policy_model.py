@@ -5,7 +5,6 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from lightning_rl.models import RLModel
-from stable_baselines3.common.vec_env import VecEnv
 from lightning_rl.common.buffers import ReplayBuffer
 
 
@@ -13,7 +12,7 @@ class OffPolicyModel(RLModel):
 
   def __init__(
       self,
-      env: Union[gym.Env, VecEnv, str],
+      env: Union[gym.Env, gym.vector.VectorEnv, str],
       batch_size: int = 256,
       replay_buffer_size: int = int(1e6),
       n_warmup_steps: int = 1000,

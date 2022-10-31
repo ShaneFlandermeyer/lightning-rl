@@ -4,7 +4,6 @@ import gym
 import numpy as np
 import torch
 from lightning_rl.models import RLModel
-from stable_baselines3.common.vec_env import VecEnv
 from lightning_rl.common.buffers import RolloutBuffer, RolloutBatch
 from lightning_rl.common.utils import clip_actions
 
@@ -20,14 +19,15 @@ class OnPolicyModel(RLModel):
   """
 
   def __init__(self,
-               env: Union[gym.Env, VecEnv, str],
+               env: Union[gym.Env, gym.vector.VectorEnv, str],
                n_steps_per_rollout: int,
                n_rollouts_per_epoch: int,
-               eval_env: Optional[Union[gym.Env, VecEnv, str]] = None,
+               eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                seed: Optional[int] = None,
                **kwargs) -> None:
+    
     super().__init__(
         env=env,
         eval_env=eval_env,

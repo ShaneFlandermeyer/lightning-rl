@@ -4,7 +4,6 @@ import pytorch_lightning as pl
 import gym
 from typing import List, Union, Optional, Tuple, Dict, Any
 import numpy as np
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 import torch
 from gym.wrappers.monitor import Monitor
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
@@ -34,29 +33,29 @@ class RLModel(pl.LightningModule):
 
   def __init__(
       self,
-      env: Union[gym.Env, VecEnv, str],
-      eval_env: Optional[Union[gym.Env, VecEnv, str]] = None,
+      env: Union[gym.Env, gym.vector.VectorEnv, str],
+      eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
       n_eval_episodes: int = 5,
       support_multi_env: bool = False,
       seed: Optional[int] = None
   ) -> None:
     super().__init__()
 
-    # Create the environment
+    # Create the gym environment
     if isinstance(env, str):
       self.env = gym.make(env)
     else:
       self.env = env
 
     # Make the environment a vector environment
-    if isinstance(self.env, gym.Env):
-      self.env = DummyVecEnv([lambda: self.env])
+    if not isinstance(self.env, gym.vector.VectorEnv):
+      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
       
     self.eval_env = eval_env
     self.n_eval_episodes = n_eval_episodes
 
-    self.observation_space = self.env.observation_space
-    self.action_space = self.env.action_space
+    self.observation_space = self.env.single_observation_space
+    self.action_space = self.env.single_action_space
     self.n_envs = self.env.num_envs
 
     if seed:
@@ -177,7 +176,7 @@ class RLModel(pl.LightningModule):
       
   def evaluate(
     self,
-    eval_env: Union[gym.Env, VecEnv, str],
+    eval_env: Union[gym.Env, gym.vector.VectorEnv, str],
     n_eval_episodes: int,
     deterministic: bool = True,
     render: bool = False,
@@ -188,7 +187,7 @@ class RLModel(pl.LightningModule):
 
     Parameters
     ----------
-    eval_env : Union[gym.Env, VecEnv, str]
+    eval_env : Union[gym.Env, gym.vector.VectorEnv, str]
         Evaluation environment
     n_eval_episodes : int
         Number of episodes used for evaluation
@@ -207,7 +206,7 @@ class RLModel(pl.LightningModule):
         _description_
     """
     
-    if isinstance(eval_env, VecEnv):
+    if isinstance(eval_env, gym.vector.VectorEnv):
             assert eval_env.num_envs == 1, "Cannot run eval_env in parallel. eval_env.num_env must equal 1"
             
     # Create the environment
@@ -216,7 +215,7 @@ class RLModel(pl.LightningModule):
 
     # Make the environment a vector environment
     if (isinstance(eval_env, gym.Env)):
-      eval_env = DummyVecEnv([lambda: eval_env])
+      eval_env = gym.vector.SyncVectorEnv([lambda: eval_env])
 
     if not is_wrapped(eval_env, Monitor):
         warnings.warn(
@@ -238,7 +237,7 @@ class RLModel(pl.LightningModule):
         # Number of loops here might differ from true episodes
         # played, if underlying wrappers modify episode lengths.
         # Avoid double reset, as VecEnv are reset automatically.
-        if not isinstance(eval_env, VecEnv) or not_reseted:
+        if not isinstance(eval_env, gym.vector.VectorEnv) or not_reseted:
             obs = eval_env.reset()
             not_reseted = False
         while not done:
@@ -253,7 +252,7 @@ class RLModel(pl.LightningModule):
         if is_wrapped(eval_env, Monitor):
             # Do not trust "done" with episode endings.
             # Remove vecenv stacking (if any)
-            if isinstance(eval_env, VecEnv):
+            if isinstance(eval_env, gym.vector.VectorEnv):
                 info = info[0]
             if "episode" in info.keys():
                 # Monitor wrapper includes "episode" key in info if environment

@@ -4,7 +4,6 @@ import gym
 import torch
 import torch.nn.functional as F
 from lightning_rl.models.on_policy_models import OnPolicyModel
-from stable_baselines3.common.vec_env import VecEnv
 from torch import distributions
 
 from lightning_rl.common.utils import explained_variance
@@ -35,8 +34,8 @@ class A2C(OnPolicyModel):
     """
 
   def __init__(self,
-               env: Union[gym.Env, VecEnv, str],
-               eval_env: Optional[Union[gym.Env, VecEnv, str]] = None,
+               env: Union[gym.Env, gym.vector.VectorEnv, str],
+               eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
                gamma: float = 0.99,

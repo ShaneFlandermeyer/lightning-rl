@@ -7,9 +7,6 @@ import torch
 import torch.nn as nn
 from lightning_rl.common.layers import NoisyLinear
 from lightning_rl.models.on_policy_models import A2C
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from torch import distributions
 
 
@@ -23,7 +20,7 @@ class Model(A2C):
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(64, self.action_space.n),
+            NoisyLinear(64, self.action_space.n),
             nn.Softmax(dim=1))
 
         self.critic = nn.Sequential(
@@ -31,7 +28,7 @@ class Model(A2C):
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(64, 1),
+            NoisyLinear(64, 1),
             )
 
         self.save_hyperparameters()
@@ -59,17 +56,16 @@ class Model(A2C):
       
 if __name__ == '__main__':
     env_id = "CartPole-v1"
-    num_cpu = 8  # Number of processes to use
+    n_env = 16  # Number of processes to use
     
-    vec_env = make_vec_env(env_id, n_envs=num_cpu, vec_env_cls=DummyVecEnv)
+    # vec_env = make_vec_env(env_id, n_envs=num_cpu, vec_env_cls=DummyVecEnv)
+    vec_env = gym.vector.AsyncVectorEnv([lambda: gym.make(env_id)] * n_env)
     eval_env = gym.make(env_id)
-    for i in range(100):
-        print("Iteration: ", i)
-        vec_env.reset()
-        eval_env.reset()    
-        
-        # TODO: For some reason, the validation rewards after each epoch only seem to update if n_steps_per_rollout > 10 (ish)
-        model = Model(env=vec_env,
+    
+    vec_env.reset()
+    eval_env.reset()    
+    
+    model = Model(env=vec_env,
                     eval_env=eval_env,
                     n_rollouts_per_epoch=100,
                     n_steps_per_rollout=16,
@@ -78,13 +74,14 @@ if __name__ == '__main__':
                     seed=np.random.randint(0, 100000),
                     normalize_advantage=False,
                     )
+    trainer = pl.Trainer(max_epochs=25, 
+                         gradient_clip_val=0.5,
+                         accelerator='gpu',
+                         enable_progress_bar=True,
+                         reload_dataloaders_every_n_epochs=1,
+                         devices=1)
+    trainer.fit(model)
         
-        trainer = pl.Trainer(max_epochs=5, 
-                             gradient_clip_val=1,
-                            accelerator='gpu',
-                            enable_progress_bar=True,
-                            reload_dataloaders_every_n_epochs=1,
-                            devices=1)
-        trainer.fit(model)
-    
+        
+        
     

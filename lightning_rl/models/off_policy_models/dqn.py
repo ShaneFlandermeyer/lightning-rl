@@ -2,7 +2,6 @@ from typing import Optional, Union
 import gym
 import torch
 from lightning_rl.models.off_policy_models import OffPolicyModel
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
 from gym import spaces
 import torch.nn.functional as F
 
@@ -12,7 +11,7 @@ from lightning_rl.common.buffers import ExperienceBatch
 class DQN(OffPolicyModel):
   def __init__(
       self,
-      env: Union[gym.Env, VecEnv, str],
+      env: Union[gym.Env, gym.vector.VectorEnv, str],
       batch_size: int = 64,
       replay_buffer_size: int = int(1e6),
       n_warmup_steps: int = 1000,
