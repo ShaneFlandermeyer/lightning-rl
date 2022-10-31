@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 import gym
 import numpy as np
 import torch
-from lightning_rl.common import RLModel
+from lightning_rl.models import RLModel
 from stable_baselines3.common.vec_env import VecEnv
 from lightning_rl.common.buffers import RolloutBuffer, RolloutBatch
 from lightning_rl.common.utils import clip_actions
@@ -121,7 +121,6 @@ class OnPolicyModel(RLModel):
 
     self.train()
     return samples
-
 
 class OnPolicyDataLoader():
   def __init__(self, model: OnPolicyModel):

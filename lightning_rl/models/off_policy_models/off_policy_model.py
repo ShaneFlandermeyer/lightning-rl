@@ -4,7 +4,7 @@ import gym
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from lightning_rl.common.rl_model import RLModel
+from lightning_rl.models import RLModel
 from stable_baselines3.common.vec_env import VecEnv
 from lightning_rl.common.buffers import ReplayBuffer
 
@@ -183,7 +183,6 @@ class OffPolicyModel(RLModel):
       self.on_step()
 
     self.train()
-
 
 class OffPolicyDataLoader:
   def __init__(self, model: OffPolicyModel):
