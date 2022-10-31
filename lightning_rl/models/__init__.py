@@ -1,1 +1,3 @@
-from lightning_rl.models.off_policy_models.dqn import DQN
+from .off_policy_models import *
+from .on_policy_models import *
+from .icm import ICM

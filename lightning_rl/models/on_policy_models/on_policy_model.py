@@ -5,9 +5,7 @@ import numpy as np
 import torch
 from lightning_rl.common import RLModel
 from stable_baselines3.common.vec_env import VecEnv
-
 from lightning_rl.common.buffers import RolloutBuffer, RolloutBatch
-from lightning_rl.models.off_policy_models.off_policy_model import OffPolicyDataLoader
 from lightning_rl.common.utils import clip_actions
 
 

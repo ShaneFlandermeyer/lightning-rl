@@ -1,2 +1,2 @@
-from lightning_rl.models.on_policy_models.on_policy_model import OnPolicyModel
-from lightning_rl.models.on_policy_models.a2c import A2C
+from .on_policy_model import OnPolicyModel, OnPolicyDataLoader
+from .a2c import A2C
