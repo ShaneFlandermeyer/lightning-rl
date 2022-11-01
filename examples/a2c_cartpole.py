@@ -8,7 +8,7 @@ import torch.nn as nn
 from lightning_rl.common.layers import NoisyLinear
 from lightning_rl.models.on_policy_models import A2C
 from torch import distributions
-
+from lightning_rl.common.callbacks import EvalCallback
 
 class Model(A2C):
     def __init__(self, **kwargs):
@@ -56,7 +56,7 @@ class Model(A2C):
       
 if __name__ == '__main__':
     env_id = "CartPole-v1"
-    n_env = 16  # Number of processes to use
+    n_env = 8  # Number of processes to use
     
     # vec_env = make_vec_env(env_id, n_envs=num_cpu, vec_env_cls=DummyVecEnv)
     vec_env = gym.vector.AsyncVectorEnv([lambda: gym.make(env_id)] * n_env)
@@ -66,20 +66,19 @@ if __name__ == '__main__':
     eval_env.reset()    
     
     model = Model(env=vec_env,
-                    eval_env=eval_env,
                     n_rollouts_per_epoch=100,
                     n_steps_per_rollout=16,
-                    n_eval_episodes=5,
                     gae_lambda=0.98,
                     seed=np.random.randint(0, 100000),
                     normalize_advantage=False,
                     )
-    trainer = pl.Trainer(max_epochs=25, 
+    trainer = pl.Trainer(max_epochs=10, 
                          gradient_clip_val=0.5,
                          accelerator='gpu',
                          enable_progress_bar=True,
                          reload_dataloaders_every_n_epochs=1,
-                         devices=1)
+                         devices=1,
+                         callbacks=[EvalCallback(eval_env)],)
     trainer.fit(model)
         
         

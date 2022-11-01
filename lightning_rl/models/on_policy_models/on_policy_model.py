@@ -22,7 +22,6 @@ class OnPolicyModel(RLModel):
                env: Union[gym.Env, gym.vector.VectorEnv, str],
                n_steps_per_rollout: int,
                n_rollouts_per_epoch: int,
-               eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                seed: Optional[int] = None,
@@ -30,7 +29,6 @@ class OnPolicyModel(RLModel):
     
     super().__init__(
         env=env,
-        eval_env=eval_env,
         support_multi_env=True,
         seed=seed,
         **kwargs,
@@ -49,6 +47,7 @@ class OnPolicyModel(RLModel):
         n_envs=self.n_envs
     )
 
+    # Metrics
     self.total_step_count = 0
 
   def forward(self,

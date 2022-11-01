@@ -35,7 +35,6 @@ class A2C(OnPolicyModel):
 
   def __init__(self,
                env: Union[gym.Env, gym.vector.VectorEnv, str],
-               eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
                gamma: float = 0.99,
@@ -48,7 +47,6 @@ class A2C(OnPolicyModel):
                ) -> None:
     super().__init__(
         env=env,
-        eval_env=eval_env,
         n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
         gamma=gamma,
