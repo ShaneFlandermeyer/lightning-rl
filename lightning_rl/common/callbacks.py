@@ -18,7 +18,6 @@ class EvalCallback(Callback):
   def __init__(self,
                eval_env: Union[gym.Env, gym.vector.VectorEnv],
                n_eval_episodes: int = 5,
-               eval_freq: int = 10000,
                deterministic: bool = True,
                render: bool = False) -> None:
     # TODO: Remove this constraint
@@ -31,11 +30,10 @@ class EvalCallback(Callback):
       self.eval_env = gym.vector.SyncVectorEnv([lambda: self.eval_env])
       
     self.n_eval_episodes = n_eval_episodes
-    self.eval_freq = eval_freq
     self.deterministic = deterministic
     self.render = render
 
-  def on_train_epoch_start(self, *args, **kwargs) -> None:
+  def on_train_epoch_end(self, *args, **kwargs) -> None:
     # TODO: These may not always be the args
     trainer, model = args
     model.eval()

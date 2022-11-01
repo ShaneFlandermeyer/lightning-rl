@@ -72,8 +72,9 @@ class OnPolicyModel(RLModel):
     """
 
     assert self._last_obs is not None, "No previous observation was provided"
-    # self.eval()
+    
     with torch.no_grad():
+      self.eval()
       self.rollout_buffer.reset()
       while not self.rollout_buffer.full():
         # Convert to pytorch tensor, let lightning take care of any GPU transfers
@@ -88,10 +89,9 @@ class OnPolicyModel(RLModel):
         actions = dist.sample()
 
         log_probs = dist.log_prob(actions)
-        clipped_actions = clip_actions(actions, self.action_space)
 
         # Perform actions and update the environment
-        new_obs, rewards, dones, infos = self.env.step(clipped_actions)
+        new_obs, rewards, dones, infos = self.env.step(actions.cpu().numpy())
         if isinstance(self.action_space, gym.spaces.Discrete):
           # Reshape in case of discrete actions
           actions = actions.view(-1, 1)

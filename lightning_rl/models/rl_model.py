@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from stable_baselines3.common.env_util import is_wrapped
+import torch.nn as nn
 
 
 class RLModel(pl.LightningModule):
@@ -49,10 +50,7 @@ class RLModel(pl.LightningModule):
     # Make the environment a vector environment
     if not isinstance(self.env, gym.vector.VectorEnv):
       self.env = gym.vector.SyncVectorEnv([lambda: self.env])
-      
-    # self.eval_env = eval_env
-    # self.n_eval_episodes = n_eval_episodes
-
+    
     self.observation_space = self.env.single_observation_space
     self.action_space = self.env.single_action_space
     self.n_envs = self.env.num_envs
@@ -172,6 +170,23 @@ class RLModel(pl.LightningModule):
     self.action_space.seed(seed)
     if self.env:
       self.env.seed(seed)
+      
+  def _get_output_shape(self, network: nn.Module) -> Tuple[int]:
+    """
+    Compute the size of the output of a network for a single example
+
+    Parameters
+    ----------
+    network : nn.Module
+        A Pytorch ANN module
+
+    Returns
+    -------
+    Tuple[int]
+        The output size of the network
+    """
+    o = network(torch.zeros(1, *self.observation_space.shape))
+    return o.shape
 
 
 

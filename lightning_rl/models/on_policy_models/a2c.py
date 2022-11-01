@@ -94,8 +94,7 @@ class A2C(OnPolicyModel):
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
 
-    with torch.no_grad():
-      explained_var = explained_variance(values, batch.returns)
+    explained_var = explained_variance(values, batch.returns)
     self.log_dict({
         'train_loss': loss,
         'policy_loss': policy_loss,

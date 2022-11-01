@@ -237,6 +237,7 @@ class RolloutBuffer():
     returns = advantages + values
 
     # Reshape experience tensors
+    # TODO: These might be the wrong shape?
     observations = observations.view(
         (-1, *observations.shape[2:]))
     actions = actions.view((-1, *actions.shape[2:]))
