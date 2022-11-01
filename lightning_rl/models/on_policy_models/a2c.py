@@ -83,12 +83,12 @@ class A2C(OnPolicyModel):
     log_probs = dist.log_prob(batch.actions)
     values = values.flatten()
 
-    advantages = batch.advantages.detach()
+    advantages = batch.advantages
     if self.normalize_advantage:
       advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     policy_loss = -(advantages * log_probs).mean()
-    value_loss = F.mse_loss(batch.returns.detach(), values)
+    value_loss = F.mse_loss(batch.returns, values)
     entropy_loss = -dist.entropy().mean()
 
     loss = policy_loss + self.value_coef * \
@@ -100,7 +100,9 @@ class A2C(OnPolicyModel):
         'policy_loss': policy_loss,
         'value_loss': value_loss,
         'entropy_loss': entropy_loss,
-        'explained_variance': explained_var},
+        'explained_variance': explained_var,
+        'total_step_count': self.total_step_count,
+        },
         prog_bar=False, logger=True
     )
 

@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import torch
+from lightning_rl.common.layers import NoisyLinear
 from lightning_rl.models import DQN
 import torch.nn as nn
 import copy
@@ -16,13 +17,9 @@ class Model(DQN):
         nn.ReLU(),
         nn.Linear(256, 256),
         nn.ReLU(),
-        nn.Linear(256, self.action_space.n))
+        NoisyLinear(256, self.action_space.n))
 
     self.qnet_target = copy.deepcopy(self.qnet)
-    self.eps = 1.0
-    self.eps_init = 1.0
-    self.eps_decay = 5000
-    self.eps_final = 0.04
     self.save_hyperparameters()
 
   # This is for running the model, returns the Q values given our observation
@@ -36,22 +33,11 @@ class Model(DQN):
   # This is for updating the target Q network
   def update_target(self):
     self.qnet_target.load_state_dict(self.qnet.state_dict())
-
-  def on_step(self):
-    super().on_step()
-    k = max(self.eps_decay - self.total_step_count, 0) / self.eps_decay
-    self.eps = self.eps_final + k * (self.eps_init - self.eps_final)
-
+    
   # This is for inference and evaluation of our model, returns the action
   def predict(self, x, deterministic=True):
     out = self.qnet(x)
-    if deterministic:
-      out = torch.max(out, dim=1)[1]
-    else:
-      eps = torch.rand_like(out[:, 0])
-      eps = (eps < self.eps).float()
-      out = eps * torch.rand_like(out).max(dim=1)[1] +\
-          (1 - eps) * out.max(dim=1)[1]
+    out = torch.max(out, dim=1)[1]
     return out.long().cpu().numpy()
 
   def configure_optimizers(self):
@@ -61,12 +47,13 @@ class Model(DQN):
 if __name__ == '__main__':
   model = Model(env='CartPole-v1')
   
-  trainer = pl.Trainer(max_epochs=20, 
+  trainer = pl.Trainer(max_epochs=10, 
                        gradient_clip_val=0.5, 
                        accelerator='gpu', 
-                       devices=2, 
+                       devices=1, 
                        strategy='ddp')
   trainer.fit(model)
   
-  # rewards = model.evaluate(eval_env, n_eval_episodes=20)
-    # print(np.mean(rewards))
+  eval_env = gym.make('CartPole-v1')
+  rewards = model.evaluate(eval_env, n_eval_episodes=20)
+  print(np.mean(rewards))

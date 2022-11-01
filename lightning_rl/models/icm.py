@@ -1,12 +1,14 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 import gym
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 
+from lightning_rl.models import RLModel
 
-class ICM(pl.LightningModule):
+
+class ICM(RLModel):
   """
   An Intrinsic Curiosity Module (ICM) for self-supervised exploration.
 
@@ -19,20 +21,17 @@ class ICM(pl.LightningModule):
   """
 
   def __init__(self,
-               observation_space: gym.Space,
-               action_space: gym.Space,
+               env: Union[str, gym.Env, gym.vector.VectorEnv],
                eta: float = 0.01,
                seed: Optional[int] = None,
                ) -> None:
-    super().__init__()
-    self.observation_space = observation_space
-    self.action_space = action_space
+    super().__init__(
+      env=env,
+      seed=seed,
+      support_multi_env=True,
+    )
     self.eta = eta
-    self.seed = seed
-
-    if seed is not None:
-      pl.seed_everything(seed)
-
+    
   def forward(self, inputs: Tuple[torch.Tensor]) -> Tuple[torch.Tensor]:
     """
     Run the ICM to generate the outputs for the forward/inverse dynamics models.
