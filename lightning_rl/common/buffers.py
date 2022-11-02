@@ -219,6 +219,7 @@ class RolloutBuffer():
 
     assert last_values.device == values.device, 'All value function outputs must be on same device'
 
+    
     # Compute advantages and returns
     advantages = torch.zeros_like(rewards)
     last_advantage_estimate = 0

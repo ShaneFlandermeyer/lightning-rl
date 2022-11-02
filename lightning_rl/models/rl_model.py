@@ -48,11 +48,11 @@ class RLModel(pl.LightningModule):
       self.env = env
 
     # Make the environment a vector environment
-    if not isinstance(self.env, gym.vector.VectorEnv):
-      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
+    # if not isinstance(self.env, gym.vector.VectorEnv):
+    #   self.env = gym.vector.SyncVectorEnv([lambda: self.env])
     
-    self.observation_space = self.env.single_observation_space
-    self.action_space = self.env.single_action_space
+    self.observation_space = self.env.observation_space
+    self.action_space = self.env.action_space
     self.n_envs = self.env.num_envs
 
     if seed:
@@ -187,10 +187,3 @@ class RLModel(pl.LightningModule):
     """
     o = network(torch.zeros(1, *self.observation_space.shape))
     return o.shape
-
-
-
-if __name__ == '__main__':
-  env = gym.make('CartPole-v1')
-  model = RLModel(env)
-  model.act(np.zeros((3,)))

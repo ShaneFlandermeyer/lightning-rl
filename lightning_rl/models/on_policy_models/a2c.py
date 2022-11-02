@@ -57,6 +57,7 @@ class A2C(OnPolicyModel):
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
     self.normalize_advantage = normalize_advantage
+    # self.automatic_optimization = False
 
   def forward(self,
               x: torch.Tensor) -> Tuple[distributions.Distribution, torch.Tensor]:
@@ -86,15 +87,23 @@ class A2C(OnPolicyModel):
     advantages = batch.advantages
     if self.normalize_advantage:
       advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    value_loss = F.mse_loss(batch.returns, values)
 
     policy_loss = -(advantages * log_probs).mean()
-    value_loss = F.mse_loss(batch.returns, values)
     entropy_loss = -dist.entropy().mean()
 
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
 
     explained_var = explained_variance(values, batch.returns)
+    
+    # TODO: Trying to see if the automatic backprop is the issue
+    # opt = self.optimizers()
+    # opt.zero_grad()
+    # self.manual_backward(loss)
+    # torch.nn.utils.clip_grad_norm_(self.parameters(), 0.5)
+    # opt.step()
+    
     self.log_dict({
         'train_loss': loss,
         'policy_loss': policy_loss,
@@ -105,5 +114,4 @@ class A2C(OnPolicyModel):
         },
         prog_bar=False, logger=True
     )
-
-    return loss
+    # return loss
