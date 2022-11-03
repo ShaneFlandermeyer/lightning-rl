@@ -130,12 +130,12 @@ class AtariA2C(A2C):
     )
 
     self.actor = nn.Sequential(
-        NoisyLinear(512, env.action_space.n),
+        nn.Linear(512, env.action_space.n),
         nn.Softmax(dim=1),
     )
 
     self.critic = nn.Sequential(
-        NoisyLinear(512, 1)
+        nn.Linear(512, 1)
     )
 
     self.save_hyperparameters()
@@ -148,7 +148,7 @@ class AtariA2C(A2C):
     return dist, self.critic(features).flatten()
 
   def configure_optimizers(self):
-    optimizer = torch.optim.Adam(self.parameters(), lr=2e-3, eps=1e-3)
+    optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, eps=1e-3)
     # optimizer = RMSpropTFLike(self.parameters(), lr=7e-4, eps=1e-5)
     return optimizer
 
@@ -159,7 +159,8 @@ if __name__ == '__main__':
   seed = np.random.randint(0, 2**32 - 1)
 
   # Vectorize the environment
-  n_env = 32
+  n_env = 50
+  # TODO: Replace these with standard gym vector envs
   env = make_atari_env(
       env_id=env_id,
       n_envs=n_env,
@@ -178,7 +179,7 @@ if __name__ == '__main__':
                  normalize_advantage=True,
                  entropy_coef=0.02,
                  value_coef=0.25,
-                 batch_size=128
+                 batch_size=64
                  )
 
   trainer = pl.Trainer(

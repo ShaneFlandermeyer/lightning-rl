@@ -59,7 +59,6 @@ class A2C(OnPolicyModel):
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
     self.normalize_advantage = normalize_advantage
-    # self.automatic_optimization = False
 
   def forward(self,
               x: torch.Tensor) -> Tuple[distributions.Distribution, torch.Tensor]:
@@ -82,15 +81,12 @@ class A2C(OnPolicyModel):
     """
     Update step for A2C.
     """
-    # opt = self.optimizers()
-    # opt.zero_grad()
     self.train()
     dist, values = self.forward(batch.observations)
     log_probs = dist.log_prob(batch.actions.flatten())
     entropy = dist.entropy()
     values = values.flatten()
 
-    # TODO: Added calls to detach() are experimental
     advantages = batch.advantages
     if self.normalize_advantage:
       advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
