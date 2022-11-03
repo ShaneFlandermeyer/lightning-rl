@@ -48,6 +48,15 @@ class RolloutBatch(NamedTuple):
   returns: torch.Tensor
 
 
+class RolloutBufferSamples(NamedTuple):
+  observations: torch.Tensor
+  actions: torch.Tensor
+  old_values: torch.Tensor
+  old_log_probs: torch.Tensor
+  advantages: torch.Tensor
+  returns: torch.Tensor
+
+
 class ReplayBuffer():
   """
   Basic buffer for storing an experience from a single time step
@@ -219,7 +228,6 @@ class RolloutBuffer():
 
     assert last_values.device == values.device, 'All value function outputs must be on same device'
 
-    
     # Compute advantages and returns
     advantages = torch.zeros_like(rewards)
     last_advantage_estimate = 0
@@ -232,7 +240,7 @@ class RolloutBuffer():
         next_values = values[step + 1]
       delta = rewards[step] + self.gamma * \
           next_values * next_non_terminal - values[step]
-      advantages[step]  = delta + self.gamma * \
+      advantages[step] = delta + self.gamma * \
           self.gae_lambda * next_non_terminal * last_advantage_estimate
       last_advantage_estimate = advantages[step]
     returns = advantages + values

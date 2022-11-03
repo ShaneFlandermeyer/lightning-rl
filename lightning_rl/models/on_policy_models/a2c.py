@@ -37,6 +37,7 @@ class A2C(OnPolicyModel):
                env: Union[gym.Env, gym.vector.VectorEnv, str],
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
+               batch_size: int = 128,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                value_coef: float = 0.5,
@@ -49,6 +50,7 @@ class A2C(OnPolicyModel):
         env=env,
         n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
+        batch_size=batch_size,
         gamma=gamma,
         gae_lambda=gae_lambda,
         seed=seed,
@@ -80,29 +82,32 @@ class A2C(OnPolicyModel):
     """
     Update step for A2C.
     """
+    # opt = self.optimizers()
+    # opt.zero_grad()
+    self.train()
     dist, values = self.forward(batch.observations)
-    log_probs = dist.log_prob(batch.actions)
+    log_probs = dist.log_prob(batch.actions.flatten())
+    entropy = dist.entropy()
     values = values.flatten()
 
+    # TODO: Added calls to detach() are experimental
     advantages = batch.advantages
     if self.normalize_advantage:
       advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-    value_loss = F.mse_loss(batch.returns, values)
-
+    
     policy_loss = -(advantages * log_probs).mean()
-    entropy_loss = -dist.entropy().mean()
+    
+    value_loss = F.mse_loss(batch.returns.detach(), values)
+    
+    if entropy is None:
+      entropy_loss = -torch.mean(entropy)
+    else:
+      entropy_loss = -torch.mean(entropy)
 
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
 
     explained_var = explained_variance(values, batch.returns)
-    
-    # TODO: Trying to see if the automatic backprop is the issue
-    # opt = self.optimizers()
-    # opt.zero_grad()
-    # self.manual_backward(loss)
-    # torch.nn.utils.clip_grad_norm_(self.parameters(), 0.5)
-    # opt.step()
     
     self.log_dict({
         'train_loss': loss,
@@ -114,4 +119,5 @@ class A2C(OnPolicyModel):
         },
         prog_bar=False, logger=True
     )
-    # return loss
+    self.eval()
+    return loss
