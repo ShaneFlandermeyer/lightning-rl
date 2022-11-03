@@ -5,8 +5,6 @@ import gym
 from typing import List, Union, Optional, Tuple, Dict, Any
 import numpy as np
 import torch
-from gym.wrappers.monitoring.video_recorder import VideoRecorder
-from stable_baselines3.common.env_util import is_wrapped
 import torch.nn as nn
 
 
@@ -34,8 +32,6 @@ class RLModel(pl.LightningModule):
   def __init__(
       self,
       env: Union[gym.Env, gym.vector.VectorEnv, str],
-      # eval_env: Optional[Union[gym.Env, gym.vector.VectorEnv, str]] = None,
-      # n_eval_episodes: int = 5,
       support_multi_env: bool = False,
       seed: Optional[int] = None
   ) -> None:
@@ -48,11 +44,11 @@ class RLModel(pl.LightningModule):
       self.env = env
 
     # Make the environment a vector environment
-    # if not isinstance(self.env, gym.vector.VectorEnv):
-    #   self.env = gym.vector.SyncVectorEnv([lambda: self.env])
+    if not isinstance(self.env, gym.vector.VectorEnv):
+      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
     
-    self.observation_space = self.env.observation_space
-    self.action_space = self.env.action_space
+    self.observation_space = self.env.single_observation_space
+    self.action_space = self.env.single_action_space
     self.n_envs = self.env.num_envs
 
     if seed:
@@ -138,17 +134,6 @@ class RLModel(pl.LightningModule):
       action = action.astype(np.int32)
 
     return action
-
-  def training_epoch_end(self, outputs) -> None:
-    """
-    Run this function at the end of each training epoch
-
-    Parameters
-    ----------
-    outputs : _type_
-        Training step outputs
-    """
-    return
 
   def reset(self) -> None:
     """

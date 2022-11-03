@@ -3,8 +3,8 @@ import gym
 import numpy as np
 
 import torch
-from lightning_rl.common.wrappers import ImageToPytorch, CuriosityWrapper
-from lightning_rl.common.atari_wrappers import *
+from lightning_rl.common.wrappers.wrappers import ImageToPytorch, CuriosityWrapper
+from lightning_rl.common.wrappers.atari_wrappers import *
 from lightning_rl.models import ICM
 from lightning_rl.common.callbacks import EvalCallback
 import pytorch_lightning as pl
@@ -12,7 +12,7 @@ from torch import nn
 from lightning_rl.common.layers import NoisyLinear
 from lightning_rl.models.on_policy_models import A2C
 from torch import distributions
-from lightning_rl.common.atari_wrappers import *
+from lightning_rl.common.wrappers.atari_wrappers import *
 # from lightning_rl.models.on_policy_models.on_policy_model import OnPolicyDataLoader
 from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
 from stable_baselines3.common.env_util import make_vec_env, make_atari_env
@@ -149,7 +149,6 @@ class AtariA2C(A2C):
 
   def configure_optimizers(self):
     optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, eps=1e-3)
-    # optimizer = RMSpropTFLike(self.parameters(), lr=7e-4, eps=1e-5)
     return optimizer
 
 

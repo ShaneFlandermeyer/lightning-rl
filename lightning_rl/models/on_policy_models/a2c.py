@@ -93,10 +93,10 @@ class A2C(OnPolicyModel):
     
     policy_loss = -(advantages * log_probs).mean()
     
-    value_loss = F.mse_loss(batch.returns.detach(), values)
+    value_loss = F.mse_loss(batch.returns, values)
     
     if entropy is None:
-      entropy_loss = -torch.mean(entropy)
+      entropy_loss = -torch.mean(-log_probs)
     else:
       entropy_loss = -torch.mean(entropy)
 
@@ -106,12 +106,12 @@ class A2C(OnPolicyModel):
     explained_var = explained_variance(values, batch.returns)
     
     self.log_dict({
-        'train_loss': loss,
-        'policy_loss': policy_loss,
-        'value_loss': value_loss,
-        'entropy_loss': entropy_loss,
-        'explained_variance': explained_var,
-        'total_step_count': self.total_step_count,
+        'train/total_loss': loss,
+        'train/policy_loss': policy_loss,
+        'train/value_loss': value_loss,
+        'train/entropy_loss': entropy_loss,
+        'train/explained_variance': explained_var,
+        'train/total_step_count': self.total_step_count,
         },
         prog_bar=False, logger=True
     )
