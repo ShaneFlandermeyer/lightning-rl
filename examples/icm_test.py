@@ -3,8 +3,6 @@ import gym
 import numpy as np
 
 import torch
-from lightning_rl.common.wrappers.wrappers import ImageToPytorch, CuriosityWrapper
-from lightning_rl.common.wrappers.atari_wrappers import *
 from lightning_rl.models import ICM
 from lightning_rl.common.callbacks import EvalCallback
 import pytorch_lightning as pl
@@ -12,8 +10,6 @@ from torch import nn
 from lightning_rl.common.layers import NoisyLinear
 from lightning_rl.models.on_policy_models import A2C
 from torch import distributions
-from lightning_rl.common.wrappers.atari_wrappers import *
-# from lightning_rl.models.on_policy_models.on_policy_model import OnPolicyDataLoader
 from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
 from stable_baselines3.common.env_util import make_vec_env, make_atari_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv

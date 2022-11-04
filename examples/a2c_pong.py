@@ -4,8 +4,6 @@ import numpy as np
 
 import torch
 from lightning_rl.common.wrappers.atari_preprocessing import AtariPreprocessing
-# from lightning_rl.common.wrappers.wrappers import ImageToPytorch, CuriosityWrapper
-# from lightning_rl.common.wrappers.atari_wrappers import *
 from lightning_rl.models import ICM
 from lightning_rl.common.callbacks import EvalCallback
 import pytorch_lightning as pl
@@ -16,6 +14,7 @@ from torch import distributions
 
 # TODO: Implement with basic gym vector environments
 from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
+
 
 class AtariA2C(A2C):
   def __init__(self,
@@ -55,8 +54,8 @@ class AtariA2C(A2C):
     return dist, self.critic(features).flatten()
 
   def configure_optimizers(self):
-    optimizer = RMSpropTFLike(self.parameters(), lr=7e-4, eps=1e-5)
-    # optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, eps=1e-3)
+    # optimizer = RMSpropTFLike(self.parameters(), lr=7e-4, eps=1e-5)
+    optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, eps=1e-3)
     return optimizer
 
 
@@ -66,23 +65,24 @@ if __name__ == '__main__':
   seed = np.random.randint(0, 2**32 - 1)
 
   # Vectorize the environment
-  n_env = 64
-  
+  n_env = 50
+
   env = gym.make(env_id)
   env.seed(seed)
   env = AtariPreprocessing(
-    env=env,
-    frame_skip=4,
-    screen_size=84,
-    grayscale_obs=True,
-    grayscale_newaxis=False,
-    scale_obs=True, 
+      env=env,
+      frame_skip=4,
+      screen_size=84,
+      grayscale_obs=True,
+      grayscale_newaxis=False,
+      scale_obs=True,
   )
   env = gym.wrappers.FrameStack(
-    env=env,
-    num_stack=4,
+      env=env,
+      num_stack=4,
   )
   env = gym.vector.AsyncVectorEnv([lambda: env]*n_env)
+  # env = gym.wrappers.RecordEpisodeStatistics(env=env, deque_size=100)
 
   a2c = AtariA2C(env=env,
                  n_rollouts_per_epoch=100,

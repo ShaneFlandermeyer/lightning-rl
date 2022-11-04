@@ -7,6 +7,9 @@ import torch.nn as nn
 import copy
 import pytorch_lightning as pl
 
+# NOTE: This example currently does not work!!!
+# I will update it when I get the chance to make the off-policy dataset class.
+
 
 class Model(DQN):
   def __init__(self, **kwargs):
@@ -33,7 +36,7 @@ class Model(DQN):
   # This is for updating the target Q network
   def update_target(self):
     self.qnet_target.load_state_dict(self.qnet.state_dict())
-    
+
   # This is for inference and evaluation of our model, returns the action
   def predict(self, x, deterministic=True):
     out = self.qnet(x)
@@ -43,17 +46,18 @@ class Model(DQN):
   def configure_optimizers(self):
     optimizer = torch.optim.Adam(self.parameters(), lr=3e-4)
     return optimizer
-  
+
+
 if __name__ == '__main__':
   model = Model(env='CartPole-v1')
-  
-  trainer = pl.Trainer(max_epochs=10, 
-                       gradient_clip_val=0.5, 
-                       accelerator='gpu', 
-                       devices=1, 
+
+  trainer = pl.Trainer(max_epochs=10,
+                       gradient_clip_val=0.5,
+                       accelerator='gpu',
+                       devices=1,
                        strategy='ddp')
   trainer.fit(model)
-  
+
   eval_env = gym.make('CartPole-v1')
   rewards = model.evaluate(eval_env, n_eval_episodes=20)
   print(np.mean(rewards))

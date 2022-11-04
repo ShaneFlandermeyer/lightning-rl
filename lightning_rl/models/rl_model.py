@@ -31,22 +31,22 @@ class RLModel(pl.LightningModule):
 
   def __init__(
       self,
-      env: Union[gym.Env, gym.vector.VectorEnv, str],
+      env: Union[str, gym.Env, gym.vector.VectorEnv],
       support_multi_env: bool = False,
       seed: Optional[int] = None
   ) -> None:
     super().__init__()
 
-    # Create the gym environment
     if isinstance(env, str):
-      self.env = gym.make(env)
+      env = gym.make(env)
+
+    # The data collection loops assume the environment is vectorized. If this is not the case, wrap the environment in a SyncVectorEnv with 1 environment.
+    is_vector_env = getattr(env, "is_vector_env", False)
+    if not is_vector_env:
+      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
     else:
       self.env = env
 
-    # Make the environment a vector environment
-    if not isinstance(self.env, gym.vector.VectorEnv):
-      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
-    
     self.observation_space = self.env.single_observation_space
     self.action_space = self.env.single_action_space
     self.n_envs = self.env.num_envs
@@ -60,47 +60,6 @@ class RLModel(pl.LightningModule):
       )
 
     self.reset()
-
-  def predict(self,
-              obs: Union[Tuple, Dict[str, Any], np.ndarray, int], deterministic: bool = False) -> np.ndarray:
-    """
-    Override this function with the predict function of your own mode
-
-    Parameters
-    ----------
-    obs : Union[Tuple, Dict[str, Any], np.ndarray, int]
-        The input observations
-    deterministic : bool, optional
-        If true, samples the action deterministically, by default False
-
-    Returns
-    -------
-    np.ndarray
-        The chosen action
-
-    Raises
-    ------
-    NotImplementedError
-    """
-    raise NotImplementedError
-
-  def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
-    """
-    Utility function to save the hyperparameters of the model.
-    This function behaves identically to LightningModule.save_hyperparameters, but will by default exclude the Gym environments
-    #lightningmodule-hyperparameters for more details
-    See https://pytorch-lightning.readthedocs.io/en/latest/hyperparameters.html
-    """
-    if not frame:
-      frame = inspect.currentframe().f_back
-    if not exclude:
-      return super().save_hyperparameters(frame=frame)
-    if isinstance(exclude, str):
-      exclude = (exclude, )
-    init_args = pl.utilities.parsing.get_init_args(frame)
-    include = [k for k in init_args.keys() if k not in exclude]
-    if len(include) > 0:
-      super().save_hyperparameters(*include, frame=frame)
 
   def act(
       self,
@@ -134,6 +93,29 @@ class RLModel(pl.LightningModule):
       action = action.astype(np.int32)
 
     return action
+  
+  def predict(self,
+              obs: Union[Tuple, Dict[str, Any], np.ndarray, int], deterministic: bool = False) -> np.ndarray:
+    """
+    Override this function with the predict function of your own mode
+
+    Parameters
+    ----------
+    obs : Union[Tuple, Dict[str, Any], np.ndarray, int]
+        The input observations
+    deterministic : bool, optional
+        If true, samples the action deterministically, by default False
+
+    Returns
+    -------
+    np.ndarray
+        The chosen action
+
+    Raises
+    ------
+    NotImplementedError
+    """
+    raise NotImplementedError
 
   def reset(self) -> None:
     """
@@ -142,6 +124,24 @@ class RLModel(pl.LightningModule):
     self._last_obs = self.env.reset()
     self._last_dones = np.zeros((self.env.num_envs,), dtype=np.bool)
 
+  def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
+    """
+    Utility function to save the hyperparameters of the model.
+    This function behaves identically to LightningModule.save_hyperparameters, but will by default exclude the Gym environments
+    #lightningmodule-hyperparameters for more details
+    See https://pytorch-lightning.readthedocs.io/en/latest/hyperparameters.html
+    """
+    if not frame:
+      frame = inspect.currentframe().f_back
+    if not exclude:
+      return super().save_hyperparameters(frame=frame)
+    if isinstance(exclude, str):
+      exclude = (exclude, )
+    init_args = pl.utilities.parsing.get_init_args(frame)
+    include = [k for k in init_args.keys() if k not in exclude]
+    if len(include) > 0:
+      super().save_hyperparameters(*include, frame=frame)
+      
   def set_random_seed(self, seed: int) -> None:
     """
     Set the seed for all RNGs
@@ -152,10 +152,10 @@ class RLModel(pl.LightningModule):
         Random seed
     """
     pl.seed_everything(seed)
-    self.action_space.seed(seed)
     if self.env:
       self.env.seed(seed)
-      
+      self.action_space.seed(seed)
+
   def _get_output_shape(self, network: nn.Module) -> Tuple[int]:
     """
     Compute the size of the output of a network for a single example

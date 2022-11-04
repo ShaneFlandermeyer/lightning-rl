@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
 import gym
 import numpy as np
@@ -8,6 +8,7 @@ from lightning_rl.models import RLModel
 from lightning_rl.common.buffers import RolloutBuffer, RolloutBatch, RolloutBufferSamples, RolloutExperience
 from lightning_rl.common.utils import clip_actions
 from lightning_rl.common.datasets import OnPolicyDataset
+
 
 class OnPolicyModel(RLModel):
   """
@@ -66,16 +67,29 @@ class OnPolicyModel(RLModel):
     self.avg_rewards = np.mean(self.total_rewards[-self.avg_reward_len:])
 
   @torch.no_grad()
-  def collect_rollouts(self) -> RolloutBufferSamples:
+  def collect_rollouts(self) -> Iterator[RolloutBufferSamples]:
     """
-    Collect rollouts and put them into the RolloutBuffer
+    Perform rollouts in the environment and return the results
+
+    Yields
+    ------
+    Iterator[RolloutBufferSamples]
+        Metrics from a randomized single time step in the current rollout (from multiple agents if the environment is vectorized). These metrics include:
+        - observation tensors
+        - actions tensors
+        - state-values
+        - log-probabilities over actions,
+        - Advantages
+        - Returns
     """
-    for _ in range(self.n_rollouts_per_epoch):
-      assert self._last_obs is not None, "No previous observation was provided"
+    assert self._last_obs is not None, "No previous observation was provided"
+    for irollout in range(self.n_rollouts_per_epoch):
       self.eval()
       while not self.rollout_buffer.full():
+        # Convert to pytorch tensor, let lightning take care of any GPU transfers
         obs_tensor = torch.as_tensor(self._last_obs).to(
             device=self.device, dtype=torch.float32)
+
         # Compute actions and log-probabilities
         action_dist, value_tensor = self.forward(obs_tensor)
         action_tensor = action_dist.sample()
@@ -101,13 +115,16 @@ class OnPolicyModel(RLModel):
             log_prob_tensor)
         self._last_obs = new_obs
         self._last_dones = new_dones
+
         # Update metrics
-        # TODO: Handle this in a more elegant way (i.e., using callbacks)
+        # TODO: Use a gym wrapper for this
         self.total_step_count += 1
         if new_dones[0]:
           self.episode_count += 1
-          self.total_rewards = np.append(self.total_rewards, self.episode_reward)
-          self.avg_rewards = np.mean(self.total_rewards[-self.avg_reward_len:])
+          self.total_rewards = np.append(
+              self.total_rewards, self.episode_reward)
+          self.avg_rewards = np.mean(
+              self.total_rewards[-self.avg_reward_len:])
           print()
           print("Episode #", self.episode_count)
           print("Episode reward:", self.episode_reward)
@@ -118,6 +135,7 @@ class OnPolicyModel(RLModel):
         else:
           self.episode_reward += rewards[0]
           self.episode_step_count += 4
+
       final_obs_tensor = torch.as_tensor(new_obs).to(
           device=self.device, dtype=torch.float32)
       _, final_value_tensor = self.forward(final_obs_tensor)
@@ -128,32 +146,48 @@ class OnPolicyModel(RLModel):
           new_done_tensor
       )
       self.rollout_buffer.reset()
-      
+
+      # Return the samples from this rollout in a random order. 
       indices = np.random.permutation(self.n_steps_per_rollout * self.n_envs)
-      for idx in indices:          
+      for idx in indices:
         yield RolloutBufferSamples(
-              observations=samples.observations[idx],
-              actions=samples.actions[idx],
-              old_values=samples.values[idx],
-              old_log_probs=samples.log_probs[idx],
-              advantages=samples.advantages[idx],
-              returns=samples.returns[idx])
+            observations=samples.observations[idx],
+            actions=samples.actions[idx],
+            old_values=samples.values[idx],
+            old_log_probs=samples.log_probs[idx],
+            advantages=samples.advantages[idx],
+            returns=samples.returns[idx])
+
     self.train()
+
   def train_dataloader(self):
     """
     Create the dataloader for our OffPolicyModel
     """
     self.dataset = OnPolicyDataset(
-      rollout_generator=self.collect_rollouts,
+        rollout_generator=self.collect_rollouts,
     )
     return DataLoader(dataset=self.dataset, batch_size=self.batch_size)
-  
-  def forward(self,
-              obs: Union[Tuple, Dict[str, Any], np.ndarray, int]) -> Tuple[torch.distributions.Distribution, torch.Tensor]:
-    """
-    Override this function with the forward function of your model
 
-    :param obs: The input observations
-    :return: The chosen actions
+  def forward(self,
+              obs: Union[Tuple, Dict[str, Any], np.ndarray, int]
+              ) -> Tuple[torch.distributions.Distribution, torch.Tensor]:
     """
+    Override this function with the forward pass through your model
+
+    Parameters
+    ----------
+    obs : Union[Tuple, Dict[str, Any], np.ndarray, int]
+        Input observations
+
+    Returns
+    -------
+    Tuple[torch.distributions.Distribution, torch.Tensor]
+        Action probability distribution from the policy network and the state-value from the value network
+
+    Raises
+    ------
+    NotImplementedError
+    """
+
     raise NotImplementedError

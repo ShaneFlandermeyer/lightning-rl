@@ -81,7 +81,6 @@ class A2C(OnPolicyModel):
     """
     Update step for A2C.
     """
-    self.train()
     dist, values = self.forward(batch.observations)
     log_probs = dist.log_prob(batch.actions.flatten())
     entropy = dist.entropy()
@@ -93,7 +92,7 @@ class A2C(OnPolicyModel):
     
     policy_loss = -(advantages * log_probs).mean()
     
-    value_loss = F.mse_loss(batch.returns, values)
+    value_loss = F.mse_loss(batch.returns.detach(), values)
     
     if entropy is None:
       entropy_loss = -torch.mean(-log_probs)
@@ -115,5 +114,4 @@ class A2C(OnPolicyModel):
         },
         prog_bar=False, logger=True
     )
-    self.eval()
     return loss

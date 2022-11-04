@@ -247,13 +247,13 @@ class RolloutBuffer():
 
     # Reshape experience tensors
     observations = observations.view(
-        (-1, *observations.shape[2:])).detach()
-    actions = actions.view((-1, *actions.shape[2:])).detach()
-    rewards = rewards.flatten().detach()
-    values = values.flatten().detach()
-    log_probs = log_probs.flatten().detach()
-    advantages = advantages.flatten().detach()
-    returns = returns.flatten().detach()
+        (-1, *observations.shape[2:]))
+    actions = actions.view((-1, *actions.shape[2:]))
+    rewards = rewards.flatten()
+    values = values.flatten()
+    log_probs = log_probs.flatten()
+    advantages = advantages.flatten()
+    returns = returns.flatten()
 
     # Return a batch of experiences
     return RolloutBatch(
