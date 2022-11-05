@@ -15,3 +15,10 @@ pip install -e .
 ## Examples
 
 - Example usages for each algorithm can be found in the ```examples/``` directory.
+
+## Algorithms
+
+- [x] DQN
+- [X] A2C
+- [ ] PPO
+- [ ] ICM
