@@ -110,7 +110,6 @@ class A2C(OnPolicyModel):
         'train/value_loss': value_loss,
         'train/entropy_loss': entropy_loss,
         'train/explained_variance': explained_var,
-        'train/total_step_count': self.total_step_count,
         },
         prog_bar=False, logger=True
     )

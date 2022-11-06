@@ -121,7 +121,7 @@ class RLModel(pl.LightningModule):
     """
     Reset the environment
     """
-    self._last_obs = self.env.reset()
+    self._last_obs = self.env.reset(seed=self.seed)[0]
     self._last_dones = np.zeros((self.env.num_envs,), dtype=np.bool)
 
   def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
@@ -153,7 +153,6 @@ class RLModel(pl.LightningModule):
     """
     pl.seed_everything(seed)
     if self.env:
-      self.env.seed(seed)
       self.action_space.seed(seed)
 
   def _get_output_shape(self, network: nn.Module) -> Tuple[int]:

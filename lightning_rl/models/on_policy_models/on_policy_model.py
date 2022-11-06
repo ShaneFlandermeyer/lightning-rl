@@ -54,19 +54,8 @@ class OnPolicyModel(RLModel):
     )
 
     # Metrics
-    # TODO: Hard-coded values incoming
-    self.avg_reward_len = 25
-    min_episode_reward = -21
     self.total_step_count = 0
-    self.episode_reward = 0
-    self.episode_count = 0
-    self.episode_step_count = 0
 
-    # For the reward computations, assuming the first environment is representative of the agent's performance
-    self.total_rewards = min_episode_reward*np.ones((self.avg_reward_len, ))
-    self.avg_rewards = np.mean(self.total_rewards[-self.avg_reward_len:])
-
-  # @torch.no_grad()
   def collect_rollouts(self) -> Iterator[RolloutBufferSamples]:
     """
     Perform rollouts in the environment and return the results
@@ -97,7 +86,7 @@ class OnPolicyModel(RLModel):
           log_prob_tensor = action_dist.log_prob(action_tensor)
           actions = action_tensor.cpu().numpy()
           # Perform actions and update the environment
-          new_obs, rewards, new_dones, infos = self.env.step(actions)
+          new_obs, rewards, new_dones, _, infos = self.env.step(actions)
           # Convert buffer entries to tensor
           if isinstance(self.action_space, gym.spaces.Discrete):
             # Reshape in case of discrete actions
@@ -117,25 +106,7 @@ class OnPolicyModel(RLModel):
           self._last_obs = new_obs
           self._last_dones = new_dones
 
-          # Update metrics
-          # TODO: Use a gym wrapper for this
           self.total_step_count += 1
-          if new_dones[0]:
-            self.episode_count += 1
-            self.total_rewards = np.append(
-                self.total_rewards, self.episode_reward)
-            self.avg_rewards = np.mean(
-                self.total_rewards[-self.avg_reward_len:])
-            print()
-            print("Episode #", self.episode_count)
-            print("Episode reward:", self.episode_reward)
-            print("Average reward:", self.avg_rewards)
-            print("Num. Steps:", self.episode_step_count)
-            self.episode_reward = 0
-            self.episode_step_count = 0
-          else:
-            self.episode_reward += rewards[0]
-            self.episode_step_count += 4
 
         final_obs_tensor = torch.as_tensor(new_obs).to(
             device=self.device, dtype=torch.float32)
