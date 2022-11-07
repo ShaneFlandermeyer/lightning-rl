@@ -86,7 +86,8 @@ class OnPolicyModel(RLModel):
           log_prob_tensor = action_dist.log_prob(action_tensor)
           actions = action_tensor.cpu().numpy()
           # Perform actions and update the environment
-          new_obs, rewards, new_dones, _, infos = self.env.step(actions)
+          new_obs, rewards, terminated, truncated, infos = self.env.step(actions)
+          new_dones = terminated
           # Convert buffer entries to tensor
           if isinstance(self.action_space, gym.spaces.Discrete):
             # Reshape in case of discrete actions

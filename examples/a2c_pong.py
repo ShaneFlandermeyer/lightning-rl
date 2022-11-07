@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
   trainer = pl.Trainer(
       max_time="00:03:00:00",
-      gradient_clip_val=0.5,
+      gradient_clip_val=0.1,
       accelerator='gpu',
       devices=1,
   )
