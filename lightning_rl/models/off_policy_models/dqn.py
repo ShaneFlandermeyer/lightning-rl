@@ -1,18 +1,17 @@
 from typing import Optional, Union
 import gym
 import torch
-from lightning_rl.common import OffPolicyModel
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
+from lightning_rl.models.off_policy_models import OffPolicyModel
 from gym import spaces
 import torch.nn.functional as F
 
-from lightning_rl.common.buffers import ExperienceBatch
+from lightning_rl.common.buffers import OffPolicyExperienceBatch
 
 
 class DQN(OffPolicyModel):
   def __init__(
       self,
-      env: Union[gym.Env, VecEnv, str],
+      env: Union[gym.Env, gym.vector.VectorEnv, str],
       batch_size: int = 64,
       replay_buffer_size: int = int(1e6),
       n_warmup_steps: int = 1000,
@@ -99,7 +98,7 @@ class DQN(OffPolicyModel):
     """
     raise NotImplementedError
 
-  def training_step(self, batch: ExperienceBatch, batch_idx: int) -> torch.Tensor:
+  def training_step(self, batch: OffPolicyExperienceBatch, batch_idx: int) -> torch.Tensor:
     """
     Compute the loss for each example in the batch using a 1-step TD update target
 
@@ -120,11 +119,10 @@ class DQN(OffPolicyModel):
       target_q = torch.max(target_q, dim=1, keepdims=True)[0]
       target_q = batch.rewards + self.gamma * target_q
       target_q[batch.dones] = 0
-      
+
     # Compute the Q-values estimated by the network
     current_q = self.forward(batch.states)
     current_q = torch.gather(current_q, dim=1, index=batch.actions.long())
-    
+
     loss = F.smooth_l1_loss(current_q, target_q)
     return loss
-    
