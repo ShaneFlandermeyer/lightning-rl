@@ -5,7 +5,7 @@ from lightning_rl.models.off_policy_models import OffPolicyModel
 from gym import spaces
 import torch.nn.functional as F
 
-from lightning_rl.common.buffers import ExperienceBatch
+from lightning_rl.common.buffers import OffPolicyExperienceBatch
 
 
 class DQN(OffPolicyModel):
@@ -98,7 +98,7 @@ class DQN(OffPolicyModel):
     """
     raise NotImplementedError
 
-  def training_step(self, batch: ExperienceBatch, batch_idx: int) -> torch.Tensor:
+  def training_step(self, batch: OffPolicyExperienceBatch, batch_idx: int) -> torch.Tensor:
     """
     Compute the loss for each example in the batch using a 1-step TD update target
 

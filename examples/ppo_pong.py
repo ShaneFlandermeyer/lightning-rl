@@ -5,15 +5,16 @@ import numpy as np
 import torch
 import pytorch_lightning as pl
 from torch import nn
-from lightning_rl.models.on_policy_models import A2C
+from lightning_rl.models.on_policy_models import PPO
 from torch import distributions
+from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
 
 
-class AtariA2C(A2C):
+class AtariPPO(PPO):
   def __init__(self,
                env: gym.Env,
                **kwargs):
-    # **kwargs will pass our arguments on to A2C
+    # **kwargs will pass our arguments on to PPO
     super().__init__(env=env,
                      **kwargs)
     self.feature_net = nn.Sequential(
@@ -84,9 +85,10 @@ if __name__ == '__main__':
   env = gym.vector.AsyncVectorEnv([lambda: env]*n_env)
   env = gym.wrappers.RecordEpisodeStatistics(env=env, deque_size=20)
 
-  a2c = AtariA2C(env=env,
+  ppo = AtariPPO(env=env,
                  n_rollouts_per_epoch=10,
                  n_steps_per_rollout=128,
+                 n_gradient_steps=10,
                  batch_size=32*8,
                  gamma=0.99,
                  gae_lambda=0.95,
@@ -103,4 +105,4 @@ if __name__ == '__main__':
       devices=1,
   )
 
-  trainer.fit(a2c)
+  trainer.fit(ppo)
