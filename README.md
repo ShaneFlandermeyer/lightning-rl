@@ -19,6 +19,6 @@ pip install -e .
 ## Algorithms
 
 - [x] DQN
-- [X] A2C
-- [ ] PPO
+- [x] A2C
+- [x] PPO
 - [ ] ICM
