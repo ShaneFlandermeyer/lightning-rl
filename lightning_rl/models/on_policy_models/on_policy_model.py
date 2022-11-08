@@ -72,8 +72,8 @@ class OnPolicyModel(RLModel):
         - Returns
     """
     assert self._last_obs is not None, "No previous observation was provided"
-    for _ in range(self.n_rollouts_per_epoch):
-      with torch.no_grad():
+    with torch.no_grad():
+      for _ in range(self.n_rollouts_per_epoch):
         self.eval()
         while not self.rollout_buffer.full():
           # Convert to pytorch tensor, let lightning take care of any GPU transfers
