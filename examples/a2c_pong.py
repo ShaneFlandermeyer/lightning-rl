@@ -67,7 +67,7 @@ if __name__ == '__main__':
   seed = np.random.randint(0, 2**32 - 1)
 
   # Vectorize the environment
-  n_env = 50
+  n_env = 64
 
   env = gym.make(env_id)
   env = gym.wrappers.AtariPreprocessing(
@@ -91,7 +91,7 @@ if __name__ == '__main__':
                  gae_lambda=1.0,
                  seed=seed,
                  normalize_advantage=True,
-                 entropy_coef=0.02,
+                 entropy_coef=0.01,
                  value_coef=0.25,
                  batch_size=64
                  )

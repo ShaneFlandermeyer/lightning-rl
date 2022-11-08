@@ -92,7 +92,7 @@ class A2C(OnPolicyModel):
     
     policy_loss = -(advantages * log_probs).mean()
     
-    value_loss = F.mse_loss(batch.returns.detach(), values)
+    value_loss = F.mse_loss(batch.returns, values)
     
     if entropy is None:
       entropy_loss = -torch.mean(-log_probs)
@@ -102,7 +102,9 @@ class A2C(OnPolicyModel):
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
 
-    explained_var = explained_variance(values, batch.returns)
+    with torch.no_grad():
+      # Don't record gradients for evaluation metrics
+      explained_var = explained_variance(values, batch.returns)
     
     self.log_dict({
         'train/total_loss': loss,
