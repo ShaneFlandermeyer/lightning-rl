@@ -9,7 +9,10 @@ from lightning_rl.common.utils import get_action_dim, get_obs_shape
 
 
 # Off policy experiences
-class Experience(NamedTuple):
+class OffPolicyExperience(NamedTuple):
+  """
+  An single off-policy experience
+  """
   state: np.ndarray
   action: np.ndarray
   reward: float
@@ -17,19 +20,20 @@ class Experience(NamedTuple):
   done: bool
 
 
-class ExperienceBatch(NamedTuple):
+class OffPolicyExperienceBatch(NamedTuple):
+  """
+  A batch of off-policy experiences
+  """
   states: torch.Tensor
   actions: torch.Tensor
   rewards: torch.Tensor
   next_states: torch.Tensor
   dones: torch.Tensor
 
-
+# On-policy experiences
 class RolloutExperience(NamedTuple):
   """
-  A single policy gradient rollout experience
-
-  NOTE: This is a single experience FROM EACH ENVIRONMENT. Therefore, each of the values must be tensors rather than scalars
+  A single policy gradient rollout experience (potentially from multiple environments)
   """
   observation: torch.Tensor
   action: torch.Tensor
@@ -38,8 +42,10 @@ class RolloutExperience(NamedTuple):
   value: torch.Tensor
   log_prob: torch.Tensor
 
-
-class RolloutBatch(NamedTuple):
+class RolloutSample(NamedTuple):
+  """
+  A backwards-looking rollout experience that includes the experience's advantage and return
+  """
   observations: torch.Tensor
   actions: torch.Tensor
   values: torch.Tensor
@@ -47,15 +53,16 @@ class RolloutBatch(NamedTuple):
   advantages: torch.Tensor
   returns: torch.Tensor
 
-
-class RolloutBufferSamples(NamedTuple):
+class RolloutBatch(NamedTuple):
+  """
+  A batch of complete rollout experiences.
+  """
   observations: torch.Tensor
   actions: torch.Tensor
-  old_values: torch.Tensor
-  old_log_probs: torch.Tensor
+  values: torch.Tensor
+  log_probs: torch.Tensor
   advantages: torch.Tensor
   returns: torch.Tensor
-
 
 class ReplayBuffer():
   """
@@ -85,9 +92,9 @@ class ReplayBuffer():
     """
     Add an experience to the buffer
     """
-    self.buffer.append(Experience(state, action, reward, next_state, done))
+    self.buffer.append(OffPolicyExperience(state, action, reward, next_state, done))
 
-  def sample(self, batch_size: int) -> ExperienceBatch:
+  def sample(self, batch_size: int) -> OffPolicyExperienceBatch:
     """
     Return a mini-batch of experiences
 
@@ -106,7 +113,7 @@ class ReplayBuffer():
     states, actions, rewards, next_states, dones = zip(
         *(self.buffer[idx] for idx in indices))
 
-    return ExperienceBatch(
+    return OffPolicyExperienceBatch(
         states=torch.as_tensor(np.array(states)[:, 0, :]),
         actions=torch.as_tensor(np.array(actions)[:, 0, :]),
         rewards=torch.as_tensor(np.array(rewards)),
