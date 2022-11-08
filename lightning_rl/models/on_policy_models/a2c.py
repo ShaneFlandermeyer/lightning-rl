@@ -4,7 +4,6 @@ import gym
 import torch
 import torch.nn.functional as F
 from lightning_rl.models.on_policy_models import OnPolicyModel
-from stable_baselines3.common.vec_env import VecEnv
 from torch import distributions
 
 from lightning_rl.common.utils import explained_variance
@@ -35,24 +34,31 @@ class A2C(OnPolicyModel):
     """
 
   def __init__(self,
-               env: Union[gym.Env, VecEnv, str],
+               env: Union[gym.Env, gym.vector.VectorEnv, str],
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
+               batch_size: int = 128,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                value_coef: float = 0.5,
                entropy_coef: float = 0.0,
-               seed: Optional[int] = None):
+               normalize_advantage: bool = True,
+               seed: Optional[int] = None,
+               **kwargs,
+               ) -> None:
     super().__init__(
         env=env,
         n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
+        batch_size=batch_size,
         gamma=gamma,
         gae_lambda=gae_lambda,
-        seed=seed
+        seed=seed,
+        **kwargs,
     )
     self.value_coef = value_coef
     self.entropy_coef = entropy_coef
+    self.normalize_advantage = normalize_advantage
 
   def forward(self,
               x: torch.Tensor) -> Tuple[distributions.Distribution, torch.Tensor]:
@@ -75,29 +81,38 @@ class A2C(OnPolicyModel):
     """
     Update step for A2C.
     """
-    dist, values = self(batch.observations)
-    log_probs = dist.log_prob(batch.actions)
+    dist, values = self.forward(batch.observations)
+    log_probs = dist.log_prob(batch.actions.flatten())
+    entropy = dist.entropy()
     values = values.flatten()
 
-    advantages = batch.advantages.detach()
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
+    advantages = batch.advantages
+    if self.normalize_advantage:
+      advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    
     policy_loss = -(advantages * log_probs).mean()
-    value_loss = F.mse_loss(batch.returns.detach(), values)
-    entropy_loss = -dist.entropy().mean()
+    
+    value_loss = F.mse_loss(batch.returns, values)
+    
+    if entropy is None:
+      entropy_loss = -torch.mean(-log_probs)
+    else:
+      entropy_loss = -torch.mean(entropy)
 
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
 
     with torch.no_grad():
+      # Don't record gradients for evaluation metrics
       explained_var = explained_variance(values, batch.returns)
+    
     self.log_dict({
-        'train_loss': loss,
-        'policy_loss': policy_loss,
-        'value_loss': value_loss,
-        'entropy_loss': entropy_loss,
-        'explained_variance': explained_var},
+        'train/total_loss': loss,
+        'train/policy_loss': policy_loss,
+        'train/value_loss': value_loss,
+        'train/entropy_loss': entropy_loss,
+        'train/explained_variance': explained_var,
+        },
         prog_bar=False, logger=True
     )
-
     return loss

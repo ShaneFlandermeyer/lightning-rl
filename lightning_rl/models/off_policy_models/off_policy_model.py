@@ -4,8 +4,7 @@ import gym
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from lightning_rl.common.rl_model import RLModel
-from stable_baselines3.common.vec_env import VecEnv
+from lightning_rl.models import RLModel
 from lightning_rl.common.buffers import ReplayBuffer
 
 
@@ -13,7 +12,7 @@ class OffPolicyModel(RLModel):
 
   def __init__(
       self,
-      env: Union[gym.Env, VecEnv, str],
+      env: Union[gym.Env, gym.vector.VectorEnv, str],
       batch_size: int = 256,
       replay_buffer_size: int = int(1e6),
       n_warmup_steps: int = 1000,
@@ -37,7 +36,7 @@ class OffPolicyModel(RLModel):
     replay_buffer_size : int, optional
         The maximum number of experiences in the replay buffer, by default int(1e6)
     n_warmup_steps : int, optional
-        The number of steps to collect before training, by default 100
+        The number of steps to collect before training, by default 1000
     n_rollouts_per_epoch : int, optional
         Number of rollouts to collect per pytorch lightning epoch, by default 100
     train_freq : int, optional
@@ -183,24 +182,6 @@ class OffPolicyModel(RLModel):
       self.on_step()
 
     self.train()
-
-  def training_epoch_end(self, outputs) -> None:
-    """
-    Run the evaluation function at the end of the training epoch
-    Override this if you also wish to do other things at the end of a training epoch
-    """
-    # TODO: Find a better way to handle this
-    if self.total_step_count >= self.n_warmup_steps:
-      self.eval()
-      rewards, lengths = self.evaluate(self.eval_env, 5)
-      self.train()
-      self.log_dict({
-          'val_reward_mean': np.mean(rewards),
-          'val_reward_std': np.std(rewards),
-          'val_lengths_mean': np.mean(lengths),
-          'val_lengths_std': np.std(lengths)},
-          prog_bar=True, logger=True)
-
 
 class OffPolicyDataLoader:
   def __init__(self, model: OffPolicyModel):

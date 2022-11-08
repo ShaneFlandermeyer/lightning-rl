@@ -42,6 +42,15 @@ class RolloutExperience(NamedTuple):
 class RolloutBatch(NamedTuple):
   observations: torch.Tensor
   actions: torch.Tensor
+  values: torch.Tensor
+  log_probs: torch.Tensor
+  advantages: torch.Tensor
+  returns: torch.Tensor
+
+
+class RolloutBufferSamples(NamedTuple):
+  observations: torch.Tensor
+  actions: torch.Tensor
   old_values: torch.Tensor
   old_log_probs: torch.Tensor
   advantages: torch.Tensor
@@ -231,7 +240,7 @@ class RolloutBuffer():
         next_values = values[step + 1]
       delta = rewards[step] + self.gamma * \
           next_values * next_non_terminal - values[step]
-      advantages[step]  = delta + self.gamma * \
+      advantages[step] = delta + self.gamma * \
           self.gae_lambda * next_non_terminal * last_advantage_estimate
       last_advantage_estimate = advantages[step]
     returns = advantages + values
@@ -250,7 +259,7 @@ class RolloutBuffer():
     return RolloutBatch(
         observations=observations,
         actions=actions,
-        old_values=values,
-        old_log_probs=log_probs,
+        values=values,
+        log_probs=log_probs,
         advantages=advantages,
         returns=returns)
