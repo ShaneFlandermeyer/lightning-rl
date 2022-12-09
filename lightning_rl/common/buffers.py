@@ -259,7 +259,7 @@ class RolloutBuffer():
     rewards = rewards.view((-1, *rewards.shape[2:]))
     values = values.view((-1, *values.shape[2:]))
     log_probs = log_probs.view(-1, *log_probs.shape[2:])
-    advantages = advantages.view((-1, *advantages.shape[2:]))
+    advantages = advantages.view((-1, *advantages.shape[2:])).unsqueeze(-1)
     returns = returns.view((-1, *returns.shape[2:]))
 
     # Return a batch of experiences
