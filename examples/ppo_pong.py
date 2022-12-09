@@ -88,19 +88,20 @@ if __name__ == '__main__':
   ppo = AtariPPO(env=env,
                  n_rollouts_per_epoch=10,
                  n_steps_per_rollout=128,
-                 n_gradient_steps=10,
-                 batch_size=32*8,
+                 n_gradient_steps=3,
+                 batch_size=256,
                  gamma=0.99,
-                 gae_lambda=0.95,
-                 value_coef=1,
+                 gae_lambda=0.9,
+                 value_coef=0.5,
                  entropy_coef=0.01,
                  seed=seed,
                  normalize_advantage=True,
+                 policy_clip_range=0.1,
                  )
 
   trainer = pl.Trainer(
       max_time="00:03:00:00",
-      gradient_clip_val=0.1,
+      gradient_clip_val=0.5,
       accelerator='gpu',
       devices=1,
   )

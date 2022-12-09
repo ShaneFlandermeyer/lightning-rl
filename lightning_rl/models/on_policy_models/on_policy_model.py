@@ -1,6 +1,6 @@
 from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 from lightning_rl.common.buffers import RolloutBuffer, RolloutSample
@@ -89,7 +89,7 @@ class OnPolicyModel(RLModel):
           actions = action_tensor.cpu().numpy()
           # Perform actions and update the environment
           new_obs, rewards, terminated, truncated, infos = self.env.step(
-              actions)
+              actions.T)
           new_dones = terminated
           # Convert buffer entries to tensor
           if isinstance(self.action_space, gym.spaces.Discrete):

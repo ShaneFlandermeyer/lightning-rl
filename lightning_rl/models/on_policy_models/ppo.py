@@ -70,7 +70,7 @@ class PPO(OnPolicyModel):
         Total loss = policy loss + value loss + entropy_loss
     """
     dist, values = self.forward(batch.observations)
-    log_probs = dist.log_prob(batch.actions.flatten())
+    log_probs = dist.log_prob(batch.actions)
     values = values.flatten()
 
     advantages = batch.advantages

@@ -1,7 +1,7 @@
 import inspect
 import warnings
 import pytorch_lightning as pl
-import gym
+import gymnasium as gym
 from typing import List, Union, Optional, Tuple, Dict, Any
 import numpy as np
 import torch
@@ -43,7 +43,7 @@ class RLModel(pl.LightningModule):
     # The data collection loops assume the environment is vectorized. If this is not the case, wrap the environment in a SyncVectorEnv with 1 environment.
     is_vector_env = getattr(env, "is_vector_env", False)
     if not is_vector_env:
-      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
+      self.env = gym.vector.SyncVectorEnv([lambda: env])
     else:
       self.env = env
 
@@ -54,6 +54,8 @@ class RLModel(pl.LightningModule):
     if seed:
       self.seed = seed
       self.set_random_seed(self.seed)
+    else:
+      self.seed = None
     if not support_multi_env and self.n_envs > 1:
       raise ValueError(
           "Error: the model does not support multiple envs; it requires " "a single vectorized environment."

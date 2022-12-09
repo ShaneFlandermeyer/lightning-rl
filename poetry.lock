@@ -24,7 +24,7 @@ multidict = ">=4.5,<7.0"
 yarl = ">=1.0,<2.0"
 
 [package.extras]
-speedups = ["Brotli", "aiodns", "cchardet"]
+speedups = ["aiodns", "brotli", "cchardet"]
 
 [[package]]
 name = "aiosignal"
@@ -51,7 +51,7 @@ numpy = "*"
 typing-extensions = {version = "*", markers = "python_version < \"3.11\""}
 
 [package.extras]
-test = ["gym (>=0.23,<1.0)", "pytest (>=7.0)"]
+test = ["pytest (>=7.0)", "gym (>=0.23,<1.0)"]
 
 [[package]]
 name = "async-timeout"
@@ -78,13 +78,13 @@ optional = false
 python-versions = ">=3.5"
 
 [package.extras]
-dev = ["cloudpickle", "coverage[toml] (>=5.0.2)", "furo", "hypothesis", "mypy (>=0.900,!=0.940)", "pre-commit", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "sphinx", "sphinx-notfound-page", "zope.interface"]
-docs = ["furo", "sphinx", "sphinx-notfound-page", "zope.interface"]
-tests = ["cloudpickle", "coverage[toml] (>=5.0.2)", "hypothesis", "mypy (>=0.900,!=0.940)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "zope.interface"]
-tests_no_zope = ["cloudpickle", "coverage[toml] (>=5.0.2)", "hypothesis", "mypy (>=0.900,!=0.940)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins"]
+dev = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "mypy (>=0.900,!=0.940)", "pytest-mypy-plugins", "zope.interface", "furo", "sphinx", "sphinx-notfound-page", "pre-commit", "cloudpickle"]
+docs = ["furo", "sphinx", "zope.interface", "sphinx-notfound-page"]
+tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "mypy (>=0.900,!=0.940)", "pytest-mypy-plugins", "zope.interface", "cloudpickle"]
+tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "mypy (>=0.900,!=0.940)", "pytest-mypy-plugins", "cloudpickle"]
 
 [[package]]
-name = "AutoROM"
+name = "autorom"
 version = "0.4.2"
 description = "Automated installation of Atari ROMs for Gym/ALE-Py"
 category = "main"
@@ -98,10 +98,10 @@ requests = "*"
 tqdm = "*"
 
 [package.extras]
-accept-rom-license = ["AutoROM.accept-rom-license"]
+accept-rom-license = ["autorom.accept-rom-license"]
 
 [[package]]
-name = "AutoROM.accept-rom-license"
+name = "autorom.accept-rom-license"
 version = "0.4.2"
 description = "Automated installation of Atari ROMs for Gym/ALE-Py"
 category = "main"
@@ -114,7 +114,7 @@ requests = "*"
 tqdm = "*"
 
 [package.extras]
-tests = ["ale_py", "multi_agent_ale_py"]
+tests = ["ale-py", "multi-agent-ale-py"]
 
 [[package]]
 name = "box2d-py"
@@ -201,11 +201,11 @@ python-versions = ">=3.7"
 numpy = ">=1.16"
 
 [package.extras]
-bokeh = ["bokeh", "selenium"]
-docs = ["docutils (<0.18)", "sphinx", "sphinx-rtd-theme"]
-test = ["Pillow", "flake8", "isort", "matplotlib", "pytest"]
+test-no-codebase = ["pillow", "matplotlib", "pytest"]
 test-minimal = ["pytest"]
-test-no-codebase = ["Pillow", "matplotlib", "pytest"]
+test = ["isort", "flake8", "pillow", "matplotlib", "pytest"]
+docs = ["sphinx-rtd-theme", "sphinx", "docutils (<0.18)"]
+bokeh = ["selenium", "bokeh"]
 
 [[package]]
 name = "cycler"
@@ -216,7 +216,7 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
-name = "Cython"
+name = "cython"
 version = "0.29.32"
 description = "The Cython compiler for writing C extensions for the Python language."
 category = "main"
@@ -248,9 +248,9 @@ optional = false
 python-versions = ">=3.7"
 
 [package.extras]
-all = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "fs (>=2.2.0,<3)", "lxml (>=4.0,<5)", "lz4 (>=1.7.4.2)", "matplotlib", "munkres", "scipy", "skia-pathops (>=0.5.0)", "sympy", "uharfbuzz (>=0.23.0)", "unicodedata2 (>=14.0.0)", "xattr", "zopfli (>=0.1.4)"]
+all = ["fs (>=2.2.0,<3)", "lxml (>=4.0,<5)", "zopfli (>=0.1.4)", "lz4 (>=1.7.4.2)", "matplotlib", "sympy", "skia-pathops (>=0.5.0)", "uharfbuzz (>=0.23.0)", "brotlicffi (>=0.8.0)", "scipy", "brotli (>=1.0.1)", "munkres", "unicodedata2 (>=14.0.0)", "xattr"]
 graphite = ["lz4 (>=1.7.4.2)"]
-interpolatable = ["munkres", "scipy"]
+interpolatable = ["scipy", "munkres"]
 lxml = ["lxml (>=4.0,<5)"]
 pathops = ["skia-pathops (>=0.5.0)"]
 plot = ["matplotlib"]
@@ -259,7 +259,7 @@ symfont = ["sympy"]
 type1 = ["xattr"]
 ufo = ["fs (>=2.2.0,<3)"]
 unicode = ["unicodedata2 (>=14.0.0)"]
-woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
+woff = ["zopfli (>=0.1.4)", "brotlicffi (>=0.8.0)", "brotli (>=1.0.1)"]
 
 [[package]]
 name = "frozenlist"
@@ -271,7 +271,7 @@ python-versions = ">=3.7"
 
 [[package]]
 name = "fsspec"
-version = "2022.10.0"
+version = "2022.11.0"
 description = "File-system specification"
 category = "main"
 optional = false
@@ -286,7 +286,7 @@ abfs = ["adlfs"]
 adl = ["adlfs"]
 arrow = ["pyarrow (>=1)"]
 dask = ["dask", "distributed"]
-dropbox = ["dropbox", "dropboxdrivefs", "requests"]
+dropbox = ["dropboxdrivefs", "requests", "dropbox"]
 entrypoints = ["importlib-metadata"]
 fuse = ["fusepy"]
 gcs = ["gcsfs"]
@@ -295,7 +295,7 @@ github = ["requests"]
 gs = ["gcsfs"]
 gui = ["panel"]
 hdfs = ["pyarrow (>=1)"]
-http = ["aiohttp (!=4.0.0a0,!=4.0.0a1)", "requests"]
+http = ["requests", "aiohttp (!=4.0.0a0,!=4.0.0a1)"]
 libarchive = ["libarchive-c"]
 oci = ["ocifs"]
 s3 = ["s3fs"]
@@ -330,7 +330,7 @@ rsa = {version = ">=3.1.4,<5", markers = "python_version >= \"3.6\""}
 six = ">=1.9.0"
 
 [package.extras]
-aiohttp = ["aiohttp (>=3.6.2,<4.0.0dev)", "requests (>=2.20.0,<3.0.0dev)"]
+aiohttp = ["requests (>=2.20.0,<3.0.0dev)", "aiohttp (>=3.6.2,<4.0.0dev)"]
 enterprise_cert = ["cryptography (==36.0.2)", "pyopenssl (==22.0.0)"]
 pyopenssl = ["pyopenssl (>=20.0.0)"]
 reauth = ["pyu2f (>=0.1.5)"]
@@ -392,20 +392,53 @@ swig = {version = ">=4.0.0,<5.0.0", optional = true, markers = "extra == \"all\"
 
 [package.extras]
 accept-rom-license = ["autorom[accept-rom-license] (>=0.4.2,<0.5.0)"]
-all = ["ale-py (>=0.8.0,<0.9.0)", "box2d-py (==2.3.5)", "imageio (>=2.14.1)", "lz4 (>=3.1.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "mujoco (==2.2)", "mujoco_py (>=2.1,<2.2)", "opencv-python (>=3.0)", "pygame (==2.1.0)", "pytest (==7.0.1)", "swig (>=4.0.0,<5.0.0)"]
+all = ["pygame (==2.1.0)", "box2d-py (==2.3.5)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "swig (>=4.0.0,<5.0.0)", "lz4 (>=3.1.0)", "pytest (==7.0.1)", "mujoco_py (>=2.1,<2.2)", "mujoco (==2.2)", "ale-py (>=0.8.0,<0.9.0)", "imageio (>=2.14.1)"]
 atari = ["ale-py (>=0.8.0,<0.9.0)"]
 box2d = ["box2d-py (==2.3.5)", "pygame (==2.1.0)", "swig (>=4.0.0,<5.0.0)"]
 classic_control = ["pygame (==2.1.0)"]
-mujoco = ["imageio (>=2.14.1)", "mujoco (==2.2)"]
+mujoco = ["mujoco (==2.2)", "imageio (>=2.14.1)"]
 mujoco_py = ["mujoco_py (>=2.1,<2.2)"]
-other = ["lz4 (>=3.1.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "opencv-python (>=3.0)"]
-testing = ["box2d-py (==2.3.5)", "imageio (>=2.14.1)", "lz4 (>=3.1.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "mujoco (==2.2)", "mujoco_py (>=2.1,<2.2)", "opencv-python (>=3.0)", "pygame (==2.1.0)", "pytest (==7.0.1)", "swig (>=4.0.0,<5.0.0)"]
+other = ["lz4 (>=3.1.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)"]
+testing = ["pygame (==2.1.0)", "box2d-py (==2.3.5)", "swig (>=4.0.0,<5.0.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "lz4 (>=3.1.0)", "mujoco_py (>=2.1,<2.2)", "mujoco (==2.2)", "imageio (>=2.14.1)", "pytest (==7.0.1)"]
 toy_text = ["pygame (==2.1.0)"]
 
 [[package]]
 name = "gym-notices"
 version = "0.0.8"
 description = "Notices for gym"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "gymnasium"
+version = "0.26.3"
+description = "A standard API for reinforcement learning and a diverse set of reference environments (formerly Gym)"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+cloudpickle = ">=1.2.0"
+gymnasium-notices = ">=0.0.1"
+numpy = ">=1.18.0"
+
+[package.extras]
+accept-rom-license = ["autorom[accept-rom-license] (>=0.4.2,<0.5.0)"]
+all = ["pygame (==2.1.0)", "matplotlib (>=3.0)", "ale-py (>=0.8.0,<0.9.0)", "mujoco (==2.2)", "box2d-py (==2.3.5)", "mujoco-py (>=2.1,<2.2)", "pytest (==7.0.1)", "imageio (>=2.14.1)", "gym (==0.26.2)", "moviepy (>=1.0.0)", "opencv-python (>=3.0)", "swig (>=4.0.0,<5.0.0)", "lz4 (>=3.1.0)"]
+atari = ["ale-py (>=0.8.0,<0.9.0)"]
+box2d = ["box2d-py (==2.3.5)", "pygame (==2.1.0)", "swig (>=4.0.0,<5.0.0)"]
+classic_control = ["pygame (==2.1.0)"]
+mujoco = ["mujoco (==2.2)", "imageio (>=2.14.1)"]
+mujoco_py = ["mujoco-py (>=2.1,<2.2)"]
+other = ["lz4 (>=3.1.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)"]
+testing = ["pygame (==2.1.0)", "matplotlib (>=3.0)", "box2d-py (==2.3.5)", "mujoco (==2.2)", "mujoco-py (>=2.1,<2.2)", "imageio (>=2.14.1)", "moviepy (>=1.0.0)", "opencv-python (>=3.0)", "swig (>=4.0.0,<5.0.0)", "lz4 (>=3.1.0)", "pytest (==7.0.1)", "gym (==0.26.2)"]
+toy_text = ["pygame (==2.1.0)"]
+
+[[package]]
+name = "gymnasium-notices"
+version = "0.0.1"
+description = "Notices for gymnasium"
 category = "main"
 optional = false
 python-versions = "*"
@@ -434,17 +467,17 @@ pillow = ">=8.3.2"
 all-plugins = ["astropy", "av (!=10.0.0)", "imageio-ffmpeg", "opencv-python", "psutil", "tifffile"]
 all-plugins-pypy = ["av (!=10.0.0)", "imageio-ffmpeg", "psutil", "tifffile"]
 build = ["wheel"]
-dev = ["black", "flake8", "fsspec[github]", "invoke", "pytest", "pytest-cov"]
-docs = ["numpydoc", "pydata-sphinx-theme", "sphinx"]
+dev = ["invoke", "pytest", "pytest-cov", "fsspec", "black", "flake8"]
+docs = ["sphinx", "numpydoc", "pydata-sphinx-theme"]
 ffmpeg = ["imageio-ffmpeg", "psutil"]
 fits = ["astropy"]
-full = ["astropy", "av (!=10.0.0)", "black", "flake8", "fsspec[github]", "gdal", "imageio-ffmpeg", "invoke", "itk", "numpydoc", "opencv-python", "psutil", "pydata-sphinx-theme", "pytest", "pytest-cov", "sphinx", "tifffile", "wheel"]
+full = ["astropy", "av (!=10.0.0)", "black", "flake8", "fsspec", "gdal", "imageio-ffmpeg", "invoke", "itk", "numpydoc", "opencv-python", "psutil", "pydata-sphinx-theme", "pytest", "pytest-cov", "sphinx", "tifffile", "wheel"]
 gdal = ["gdal"]
 itk = ["itk"]
 linting = ["black", "flake8"]
 opencv = ["opencv-python"]
 pyav = ["av (!=10.0.0)"]
-test = ["fsspec[github]", "invoke", "pytest", "pytest-cov"]
+test = ["invoke", "pytest", "pytest-cov", "fsspec"]
 tifffile = ["tifffile"]
 
 [[package]]
@@ -464,8 +497,8 @@ optional = false
 python-versions = ">=3.7"
 
 [package.extras]
-docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)"]
-testing = ["flake8 (<5)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
+docs = ["sphinx (>=3.5)", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "furo", "jaraco.tidelift (>=1.4)"]
+testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "flake8 (<5)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
 
 [[package]]
 name = "iniconfig"
@@ -494,7 +527,7 @@ python-versions = ">=3.7"
 [package.extras]
 docs = ["sphinx (>=1.6.0)", "sphinx-bootstrap-theme"]
 flake8 = ["flake8"]
-tests = ["psutil", "pytest (!=3.3.0)", "pytest-cov"]
+tests = ["pytest (!=3.3.0)", "psutil", "pytest-cov"]
 
 [[package]]
 name = "markdown"
@@ -556,9 +589,9 @@ requests = ">=2.8.1,<3.0"
 tqdm = ">=4.11.2,<5.0"
 
 [package.extras]
-doc = ["Sphinx (>=1.5.2,<2.0)", "numpydoc (>=0.6.0,<1.0)", "pygame (>=1.9.3,<2.0)", "sphinx_rtd_theme (>=0.1.10b0,<1.0)"]
-optional = ["matplotlib (>=2.0.0,<3.0)", "opencv-python (>=3.0,<4.0)", "scikit-image (>=0.13.0,<1.0)", "scikit-learn", "scipy (>=0.19.0,<1.5)", "youtube_dl"]
-test = ["coverage (<5.0)", "coveralls (>=1.1,<2.0)", "pytest (>=3.0.0,<4.0)", "pytest-cov (>=2.5.1,<3.0)", "requests (>=2.8.1,<3.0)"]
+doc = ["numpydoc (>=0.6.0,<1.0)", "sphinx_rtd_theme (>=0.1.10b0,<1.0)", "Sphinx (>=1.5.2,<2.0)", "pygame (>=1.9.3,<2.0)"]
+optional = ["youtube-dl", "opencv-python (>=3.0,<4.0)", "scipy (>=0.19.0,<1.5)", "scikit-image (>=0.13.0,<1.0)", "scikit-learn", "matplotlib (>=2.0.0,<3.0)"]
+test = ["coverage (<5.0)", "coveralls (>=1.1,<2.0)", "pytest-cov (>=2.5.1,<3.0)", "pytest (>=3.0.0,<4.0)", "requests (>=2.8.1,<3.0)"]
 
 [[package]]
 name = "mujoco"
@@ -614,10 +647,6 @@ category = "main"
 optional = false
 python-versions = ">=3"
 
-[package.dependencies]
-setuptools = "*"
-wheel = "*"
-
 [[package]]
 name = "nvidia-cuda-nvrtc-cu11"
 version = "11.7.99"
@@ -625,10 +654,6 @@ description = "NVRTC native runtime libraries"
 category = "main"
 optional = false
 python-versions = ">=3"
-
-[package.dependencies]
-setuptools = "*"
-wheel = "*"
 
 [[package]]
 name = "nvidia-cuda-runtime-cu11"
@@ -638,10 +663,6 @@ category = "main"
 optional = false
 python-versions = ">=3"
 
-[package.dependencies]
-setuptools = "*"
-wheel = "*"
-
 [[package]]
 name = "nvidia-cudnn-cu11"
 version = "8.5.0.96"
@@ -649,10 +670,6 @@ description = "cuDNN runtime libraries"
 category = "main"
 optional = false
 python-versions = ">=3"
-
-[package.dependencies]
-setuptools = "*"
-wheel = "*"
 
 [[package]]
 name = "oauthlib"
@@ -715,8 +732,8 @@ optional = false
 python-versions = ">=3.6"
 
 [package.extras]
-dev = ["pre-commit", "tox"]
-testing = ["pytest", "pytest-benchmark"]
+testing = ["pytest-benchmark", "pytest"]
+dev = ["tox", "pre-commit"]
 
 [[package]]
 name = "proglog"
@@ -789,7 +806,7 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
-name = "PyOpenGL"
+name = "pyopengl"
 version = "3.1.6"
 description = "Standard OpenGL bindings for Python"
 category = "main"
@@ -805,7 +822,7 @@ optional = false
 python-versions = ">=3.6.8"
 
 [package.extras]
-diagrams = ["jinja2", "railroad-diagrams"]
+diagrams = ["railroad-diagrams", "jinja2"]
 
 [[package]]
 name = "pytest"
@@ -860,17 +877,17 @@ tqdm = ">=4.57.0"
 typing-extensions = ">=4.0.0"
 
 [package.extras]
-all = ["cloudpickle (>=1.3)", "codecov (>=2.1)", "comet-ml (>=3.1.12)", "coverage (>=6.4)", "deepspeed (>=0.6.0)", "fairscale (>=0.4.5)", "fastapi", "gcsfs (>=2021.5.0)", "gym[classic_control] (>=0.17.0)", "hivemind (>=1.0.1)", "horovod (>=0.21.2,!=0.24.0)", "hydra-core (>=1.0.5)", "ipython[all]", "jsonargparse[signatures] (>=4.12.0)", "matplotlib (>3.1)", "mlflow (>=1.0.0)", "mypy (==0.971)", "neptune-client (>=0.10.0)", "omegaconf (>=2.0.5)", "onnxruntime", "pandas (>1.0)", "pre-commit (>=1.0)", "protobuf (<=3.20.1)", "psutil", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "rich (>=10.14.0,!=10.15.0.a)", "scikit-learn (>0.22.1)", "torchtext (>=0.10)", "torchvision (>=0.10)", "uvicorn", "wandb (>=0.10.22)"]
+all = ["matplotlib (>3.1)", "torchtext (>=0.10)", "omegaconf (>=2.0.5)", "hydra-core (>=1.0.5)", "jsonargparse[signatures] (>=4.12.0)", "gcsfs (>=2021.5.0)", "rich (>=10.14.0,!=10.15.0.a)", "protobuf (<=3.20.1)", "neptune-client (>=0.10.0)", "comet-ml (>=3.1.12)", "mlflow (>=1.0.0)", "wandb (>=0.10.22)", "coverage (>=6.4)", "codecov (>=2.1)", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "pre-commit (>=1.0)", "mypy (==0.971)", "cloudpickle (>=1.3)", "scikit-learn (>0.22.1)", "onnxruntime", "psutil", "pandas (>1.0)", "fastapi", "uvicorn", "torchvision (>=0.10)", "gym[classic_control] (>=0.17.0)", "ipython", "fairscale (>=0.4.5)", "deepspeed (>=0.6.0)", "horovod (>=0.21.2,!=0.24.0)", "hivemind (>=1.0.1)"]
 deepspeed = ["deepspeed (>=0.6.0)"]
-dev = ["cloudpickle (>=1.3)", "codecov (>=2.1)", "comet-ml (>=3.1.12)", "coverage (>=6.4)", "fastapi", "gcsfs (>=2021.5.0)", "hydra-core (>=1.0.5)", "jsonargparse[signatures] (>=4.12.0)", "matplotlib (>3.1)", "mlflow (>=1.0.0)", "mypy (==0.971)", "neptune-client (>=0.10.0)", "omegaconf (>=2.0.5)", "onnxruntime", "pandas (>1.0)", "pre-commit (>=1.0)", "protobuf (<=3.20.1)", "psutil", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "rich (>=10.14.0,!=10.15.0.a)", "scikit-learn (>0.22.1)", "torchtext (>=0.10)", "uvicorn", "wandb (>=0.10.22)"]
-examples = ["gym[classic_control] (>=0.17.0)", "ipython[all]", "torchvision (>=0.10)"]
-extra = ["gcsfs (>=2021.5.0)", "hydra-core (>=1.0.5)", "jsonargparse[signatures] (>=4.12.0)", "matplotlib (>3.1)", "omegaconf (>=2.0.5)", "protobuf (<=3.20.1)", "rich (>=10.14.0,!=10.15.0.a)", "torchtext (>=0.10)"]
+dev = ["matplotlib (>3.1)", "torchtext (>=0.10)", "omegaconf (>=2.0.5)", "hydra-core (>=1.0.5)", "jsonargparse[signatures] (>=4.12.0)", "gcsfs (>=2021.5.0)", "rich (>=10.14.0,!=10.15.0.a)", "protobuf (<=3.20.1)", "neptune-client (>=0.10.0)", "comet-ml (>=3.1.12)", "mlflow (>=1.0.0)", "wandb (>=0.10.22)", "coverage (>=6.4)", "codecov (>=2.1)", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "pre-commit (>=1.0)", "mypy (==0.971)", "cloudpickle (>=1.3)", "scikit-learn (>0.22.1)", "onnxruntime", "psutil", "pandas (>1.0)", "fastapi", "uvicorn"]
+examples = ["torchvision (>=0.10)", "gym[classic_control] (>=0.17.0)", "ipython"]
+extra = ["matplotlib (>3.1)", "torchtext (>=0.10)", "omegaconf (>=2.0.5)", "hydra-core (>=1.0.5)", "jsonargparse[signatures] (>=4.12.0)", "gcsfs (>=2021.5.0)", "rich (>=10.14.0,!=10.15.0.a)", "protobuf (<=3.20.1)"]
 fairscale = ["fairscale (>=0.4.5)"]
 hivemind = ["hivemind (>=1.0.1)"]
 horovod = ["horovod (>=0.21.2,!=0.24.0)"]
-loggers = ["comet-ml (>=3.1.12)", "mlflow (>=1.0.0)", "neptune-client (>=0.10.0)", "wandb (>=0.10.22)"]
-strategies = ["deepspeed (>=0.6.0)", "fairscale (>=0.4.5)", "hivemind (>=1.0.1)", "horovod (>=0.21.2,!=0.24.0)"]
-test = ["cloudpickle (>=1.3)", "codecov (>=2.1)", "coverage (>=6.4)", "fastapi", "mypy (==0.971)", "onnxruntime", "pandas (>1.0)", "pre-commit (>=1.0)", "psutil", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "scikit-learn (>0.22.1)", "uvicorn"]
+loggers = ["neptune-client (>=0.10.0)", "comet-ml (>=3.1.12)", "mlflow (>=1.0.0)", "wandb (>=0.10.22)"]
+strategies = ["fairscale (>=0.4.5)", "deepspeed (>=0.6.0)", "horovod (>=0.21.2,!=0.24.0)", "hivemind (>=1.0.1)"]
+test = ["coverage (>=6.4)", "codecov (>=2.1)", "pytest (>=7.0)", "pytest-cov", "pytest-forked", "pytest-rerunfailures (>=10.2)", "pre-commit (>=1.0)", "mypy (==0.971)", "cloudpickle (>=1.3)", "scikit-learn (>0.22.1)", "onnxruntime", "psutil", "pandas (>1.0)", "fastapi", "uvicorn"]
 
 [[package]]
 name = "pyyaml"
@@ -925,19 +942,6 @@ python-versions = ">=3.6,<4"
 pyasn1 = ">=0.1.3"
 
 [[package]]
-name = "setuptools"
-version = "65.5.1"
-description = "Easily download, build, install, upgrade, and uninstall Python packages"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.extras]
-docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-hoverxref (<2)", "sphinx-inline-tabs", "sphinx-notfound-page (==0.8.3)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
-testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8 (<5)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pip-run (>=8.8)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
-testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
-
-[[package]]
 name = "setuptools-scm"
 version = "7.0.5"
 description = "the blessed package to manage your versions by scm tags"
@@ -947,7 +951,6 @@ python-versions = ">=3.7"
 
 [package.dependencies]
 packaging = ">=20.0"
-setuptools = "*"
 tomli = ">=1.0.0"
 typing-extensions = "*"
 
@@ -988,11 +991,9 @@ markdown = ">=2.6.8"
 numpy = ">=1.12.0"
 protobuf = ">=3.9.2,<3.20"
 requests = ">=2.21.0,<3"
-setuptools = ">=41.0.0"
 tensorboard-data-server = ">=0.6.0,<0.7.0"
 tensorboard-plugin-wit = ">=1.6.0"
 werkzeug = ">=1.0.1"
-wheel = ">=0.26"
 
 [[package]]
 name = "tensorboard-data-server"
@@ -1050,14 +1051,14 @@ packaging = "*"
 torch = ">=1.3.1"
 
 [package.extras]
-all = ["lpips", "nltk (>=3.6)", "pycocotools", "pystoi", "pytorch-lightning (>=1.5)", "regex (>=2021.9.24)", "scipy", "torch-fidelity", "torchvision", "torchvision (>=0.8)", "tqdm (>=4.41.0)"]
+docs = ["sphinxcontrib-fulltoc (>=1.0)", "pandoc (>=1.0)", "sphinx-togglebutton (>=0.2)", "sphinxcontrib-mockautodoc", "sphinx (>=4.0,<5.0)", "sphinx-paramlinks (>=0.5.1)", "myst-parser", "sphinx-autodoc-typehints (>=1.0)", "nbsphinx (>=0.8)", "docutils (>=0.16)", "sphinx-copybutton (>=0.3)"]
+all = ["pystoi", "pycocotools", "torchvision (>=0.8)", "scipy", "torchvision", "torch-fidelity", "lpips", "pytorch-lightning (>=1.5)", "regex (>=2021.9.24)", "tqdm (>=4.41.0)", "nltk (>=3.6)"]
 audio = ["pystoi"]
 detection = ["pycocotools", "torchvision (>=0.8)"]
-docs = ["docutils (>=0.16)", "myst-parser", "nbsphinx (>=0.8)", "pandoc (>=1.0)", "sphinx (>=4.0,<5.0)", "sphinx-autodoc-typehints (>=1.0)", "sphinx-copybutton (>=0.3)", "sphinx-paramlinks (>=0.5.1)", "sphinx-togglebutton (>=0.2)", "sphinxcontrib-fulltoc (>=1.0)", "sphinxcontrib-mockautodoc"]
-image = ["lpips", "scipy", "torch-fidelity", "torchvision"]
+image = ["scipy", "torchvision", "torch-fidelity", "lpips"]
 integrate = ["pytorch-lightning (>=1.5)"]
-test = ["bert-score (==0.3.10)", "check-manifest", "cloudpickle (>=1.3)", "coverage (>5.2)", "fast-bss-eval (>=0.1.0)", "fire", "huggingface-hub (<0.7)", "jiwer (>=2.3.0)", "mir-eval (>=0.6)", "netcal", "phmdoctest (>=1.1.1)", "pre-commit (>=1.0)", "psutil", "pycocotools", "pypesq (>1.2)", "pytest (>=6.0.0,<7.0.0)", "pytest-cov (>2.10)", "pytest-doctestplus (>=0.9.0)", "pytest-timeout", "pytorch-msssim (==0.2.1)", "requests", "rouge-score (>=0.0.4)", "sacrebleu (>=2.0.0)", "scikit-image (>0.17.1)", "scikit-learn (>1.0,<1.1.1)", "torch-complex", "transformers (>=4.0)"]
-text = ["nltk (>=3.6)", "regex (>=2021.9.24)", "tqdm (>=4.41.0)"]
+test = ["phmdoctest (>=1.1.1)", "fast-bss-eval (>=0.1.0)", "cloudpickle (>=1.3)", "psutil", "bert-score (==0.3.10)", "pytest-timeout", "fire", "requests", "pytest-doctestplus (>=0.9.0)", "rouge-score (>=0.0.4)", "scikit-learn (>1.0,<1.1.1)", "coverage (>5.2)", "mir-eval (>=0.6)", "huggingface-hub (<0.7)", "pre-commit (>=1.0)", "pytest (>=6.0.0,<7.0.0)", "scikit-image (>0.17.1)", "transformers (>=4.0)", "pypesq (>1.2)", "check-manifest", "pycocotools", "netcal", "pytorch-msssim (==0.2.1)", "torch-complex", "sacrebleu (>=2.0.0)", "pytest-cov (>2.10)", "jiwer (>=2.3.0)"]
+text = ["regex (>=2021.9.24)", "tqdm (>=4.41.0)", "nltk (>=3.6)"]
 
 [[package]]
 name = "tqdm"
@@ -1093,8 +1094,8 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, <4"
 
 [package.extras]
-brotli = ["brotli (>=1.0.9)", "brotlicffi (>=0.8.0)", "brotlipy (>=0.6.0)"]
-secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "pyOpenSSL (>=0.14)", "urllib3-secure-extra"]
+brotli = ["brotlicffi (>=0.8.0)", "brotli (>=1.0.9)", "brotlipy (>=0.6.0)"]
+secure = ["pyOpenSSL (>=0.14)", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "certifi", "urllib3-secure-extra", "ipaddress"]
 socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
@@ -1112,17 +1113,6 @@ MarkupSafe = ">=2.1.1"
 watchdog = ["watchdog"]
 
 [[package]]
-name = "wheel"
-version = "0.38.2"
-description = "A built-package format for Python"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.extras]
-test = ["pytest (>=3.0.0)"]
-
-[[package]]
 name = "yarl"
 version = "1.8.1"
 description = "Yet another URL library"
@@ -1137,7 +1127,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "1d7980fa366af68eafb20c828de27b35df36d522a9e9c1072d0e65e7d0188cab"
+content-hash = "4e7789226082536e2182c54dd8a9ee062fdff78f3e6244fc9dd8ab6522d59d36"
 
 [metadata.files]
 absl-py = [
@@ -1269,11 +1259,11 @@ attrs = [
     {file = "attrs-22.1.0-py2.py3-none-any.whl", hash = "sha256:86efa402f67bf2df34f51a335487cf46b1ec130d02b8d39fd248abfd30da551c"},
     {file = "attrs-22.1.0.tar.gz", hash = "sha256:29adc2665447e5191d0e7c568fde78b21f9672d344281d0c6e1ab085429b22b6"},
 ]
-AutoROM = [
+autorom = [
     {file = "AutoROM-0.4.2-py3-none-any.whl", hash = "sha256:719c9d363ef08391fdb7003d70df235b68f36de628d289a946c4a59a3adefa13"},
     {file = "AutoROM-0.4.2.tar.gz", hash = "sha256:b426a39bc0ee3781c7791f28963a9b2e4385b6421eeaf2f368edc00c761d428a"},
 ]
-"AutoROM.accept-rom-license" = [
+"autorom.accept-rom-license" = [
     {file = "AutoROM.accept-rom-license-0.4.2.tar.gz", hash = "sha256:f08654c9d2a6837c5ec951c0364bda352510920ea0523005a2d4460c7d2be7f2"},
 ]
 box2d-py = [
@@ -1448,7 +1438,7 @@ cycler = [
     {file = "cycler-0.11.0-py3-none-any.whl", hash = "sha256:3a27e95f763a428a739d2add979fa7494c912a32c17c4c38c4d5f082cad165a3"},
     {file = "cycler-0.11.0.tar.gz", hash = "sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f"},
 ]
-Cython = [
+cython = [
     {file = "Cython-0.29.32-cp27-cp27m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:39afb4679b8c6bf7ccb15b24025568f4f9b4d7f9bf3cbd981021f542acecd75b"},
     {file = "Cython-0.29.32-cp27-cp27m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:dbee03b8d42dca924e6aa057b836a064c769ddfd2a4c2919e65da2c8a362d528"},
     {file = "Cython-0.29.32-cp27-cp27mu-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:5ba622326f2862f9c1f99ca8d47ade49871241920a352c917e16861e25b0e5c3"},
@@ -1564,8 +1554,8 @@ frozenlist = [
     {file = "frozenlist-1.3.1.tar.gz", hash = "sha256:3a735e4211a04ccfa3f4833547acdf5d2f863bfeb01cfd3edaffbc251f15cec8"},
 ]
 fsspec = [
-    {file = "fsspec-2022.10.0-py3-none-any.whl", hash = "sha256:6b7c6ab3b476cdf17efcfeccde7fca28ef5a48f73a71010aaceec5fc15bf9ebf"},
-    {file = "fsspec-2022.10.0.tar.gz", hash = "sha256:cb6092474e90487a51de768170f3afa50ca8982c26150a59072b16433879ff1d"},
+    {file = "fsspec-2022.11.0-py3-none-any.whl", hash = "sha256:d6e462003e3dcdcb8c7aa84c73a228f8227e72453cd22570e2363e8844edfe7b"},
+    {file = "fsspec-2022.11.0.tar.gz", hash = "sha256:259d5fd5c8e756ff2ea72f42e7613c32667dc2049a4ac3d84364a7ca034acb8b"},
 ]
 glfw = [
     {file = "glfw-2.5.5-py2.py27.py3.py30.py31.py32.py33.py34.py35.py36.py37.py38-none-macosx_10_6_intel.whl", hash = "sha256:1c6ffe20350bd7931c4954720fbef498c2e9bce43ebd719c41de9e87c3fb7173"},
@@ -1639,6 +1629,14 @@ gym = [
 gym-notices = [
     {file = "gym-notices-0.0.8.tar.gz", hash = "sha256:ad25e200487cafa369728625fe064e88ada1346618526102659b4640f2b4b911"},
     {file = "gym_notices-0.0.8-py3-none-any.whl", hash = "sha256:e5f82e00823a166747b4c2a07de63b6560b1acb880638547e0cabf825a01e463"},
+]
+gymnasium = [
+    {file = "Gymnasium-0.26.3-py3-none-any.whl", hash = "sha256:4be0085252759c65b09c9fb83970ceedd02fab03b075024d8ba22eaa1a11eda1"},
+    {file = "Gymnasium-0.26.3.tar.gz", hash = "sha256:2a918e321fc0bb48f4ebf2936ccd8f20a049658f1509dea9c6e768b8030392ed"},
+]
+gymnasium-notices = [
+    {file = "gymnasium-notices-0.0.1.tar.gz", hash = "sha256:3e8c868046f56dea84c949cc7e97383cccfab27152fc3f4968754e4c9c087ab9"},
+    {file = "gymnasium_notices-0.0.1-py3-none-any.whl", hash = "sha256:be68c8399e88b554b6db1eb3c484b00f229cbe5c930f64f6ae9cd1a6e93db1c5"},
 ]
 idna = [
     {file = "idna-3.4-py3-none-any.whl", hash = "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"},
@@ -2012,8 +2010,6 @@ pillow = [
     {file = "Pillow-9.2.0-cp310-cp310-win32.whl", hash = "sha256:c79698d4cd9318d9481d89a77e2d3fcaeff5486be641e60a4b49f3d2ecca4e28"},
     {file = "Pillow-9.2.0-cp310-cp310-win_amd64.whl", hash = "sha256:254164c57bab4b459f14c64e93df11eff5ded575192c294a0c49270f22c5d93d"},
     {file = "Pillow-9.2.0-cp311-cp311-macosx_10_10_universal2.whl", hash = "sha256:408673ed75594933714482501fe97e055a42996087eeca7e5d06e33218d05aa8"},
-    {file = "Pillow-9.2.0-cp311-cp311-macosx_10_10_x86_64.whl", hash = "sha256:adabc0bce035467fb537ef3e5e74f2847c8af217ee0be0455d4fec8adc0462fc"},
-    {file = "Pillow-9.2.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:336b9036127eab855beec9662ac3ea13a4544a523ae273cbf108b228ecac8437"},
     {file = "Pillow-9.2.0-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:727dd1389bc5cb9827cbd1f9d40d2c2a1a0c9b32dd2261db522d22a604a6eec9"},
     {file = "Pillow-9.2.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:50dff9cc21826d2977ef2d2a205504034e3a4563ca6f5db739b0d1026658e004"},
     {file = "Pillow-9.2.0-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:cb6259196a589123d755380b65127ddc60f4c64b21fc3bb46ce3a6ea663659b0"},
@@ -2199,7 +2195,7 @@ pygame = [
     {file = "pygame-2.1.0-pp37-pypy37_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4ab5aba8677d135b94c4714e8256efdfffefc164f354a4d05b846588caf43b99"},
     {file = "pygame-2.1.0.tar.gz", hash = "sha256:232e51104db0e573221660d172af8e6fc2c0fda183c5dbf2aa52170f29aa9ec9"},
 ]
-PyOpenGL = [
+pyopengl = [
     {file = "PyOpenGL-3.1.6-py2-none-any.whl", hash = "sha256:57c597d989178e1413002df6b923619f6d29807501dece1c60cc6f12c0c8e8a7"},
     {file = "PyOpenGL-3.1.6-py3-none-any.whl", hash = "sha256:a7139bc3e15d656feae1f7e3ef68c799941ed43fadc78177a23db7e946c20738"},
     {file = "PyOpenGL-3.1.6.tar.gz", hash = "sha256:8ea6c8773927eda7405bffc6f5bb93be81569a7b05c8cac50cd94e969dce5e27"},
@@ -2266,10 +2262,6 @@ requests-oauthlib = [
 rsa = [
     {file = "rsa-4.9-py3-none-any.whl", hash = "sha256:90260d9058e514786967344d0ef75fa8727eed8a7d2e43ce9f4bcf1b536174f7"},
     {file = "rsa-4.9.tar.gz", hash = "sha256:e38464a49c6c85d7f1351b0126661487a7e0a14a50f1675ec50eb34d4f20ef21"},
-]
-setuptools = [
-    {file = "setuptools-65.5.1-py3-none-any.whl", hash = "sha256:d0b9a8433464d5800cbe05094acf5c6d52a91bfac9b52bcfc4d41382be5d5d31"},
-    {file = "setuptools-65.5.1.tar.gz", hash = "sha256:e197a19aa8ec9722928f2206f8de752def0e4c9fc6953527360d1c36d94ddb2f"},
 ]
 setuptools-scm = [
     {file = "setuptools_scm-7.0.5-py3-none-any.whl", hash = "sha256:7930f720905e03ccd1e1d821db521bff7ec2ac9cf0ceb6552dd73d24a45d3b02"},
@@ -2354,10 +2346,6 @@ urllib3 = [
 werkzeug = [
     {file = "Werkzeug-2.2.2-py3-none-any.whl", hash = "sha256:f979ab81f58d7318e064e99c4506445d60135ac5cd2e177a2de0089bfd4c9bd5"},
     {file = "Werkzeug-2.2.2.tar.gz", hash = "sha256:7ea2d48322cc7c0f8b3a215ed73eabd7b5d75d0b50e31ab006286ccff9e00b8f"},
-]
-wheel = [
-    {file = "wheel-0.38.2-py3-none-any.whl", hash = "sha256:7a5a3095dceca97a3cac869b8fef4e89b83fafde21b6688f47b6fda7600eb441"},
-    {file = "wheel-0.38.2.tar.gz", hash = "sha256:3d492ef22379a156ec923d2a77051cedfd4df4b667864e9e41ba83f0b70b7149"},
 ]
 yarl = [
     {file = "yarl-1.8.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:abc06b97407868ef38f3d172762f4069323de52f2b70d133d096a48d72215d28"},
