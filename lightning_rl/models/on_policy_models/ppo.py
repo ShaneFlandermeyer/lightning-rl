@@ -114,7 +114,8 @@ class PPO(OnPolicyModel):
       approx_kl = torch.mean(batch.log_probs - log_probs)
       explained_var = explained_variance(batch.values, batch.returns)
 
-    # TODO: Implement early stopping logic when the approximate KL exceeds the target KL parameter
+    if self.target_kl is not None and approx_kl > 1.5 * self.target_kl:
+      self.continue_training = False
 
     self.log_dict({
         'train/total_loss': loss,

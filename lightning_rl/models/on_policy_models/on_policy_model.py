@@ -75,6 +75,7 @@ class OnPolicyModel(RLModel):
     """
     assert self._last_obs is not None, "No previous observation was provided"
     with torch.no_grad():
+      self.continue_training = True
       for _ in range(self.n_rollouts_per_epoch):
         self.eval()
         while not self.rollout_buffer.full():
@@ -123,9 +124,12 @@ class OnPolicyModel(RLModel):
         )
         self.rollout_buffer.reset()
 
-        # Train on minibatches from the current rollout. Some algorithms can only do this once for a given policy (e.g., A2C), but more sample-efficient algorithms can re-use the rollout data for multiple gradient update steps (e.g., PPO).
+        # Train on minibatches from the current rollout. 
         self.train()
         for _ in range(self.n_gradient_steps):
+          # Check if the training_step has requested to stop training on the current batch.
+          if not self.continue_training:
+            break
           indices = np.random.permutation(
               self.n_steps_per_rollout * self.n_envs)
           for idx in indices:
