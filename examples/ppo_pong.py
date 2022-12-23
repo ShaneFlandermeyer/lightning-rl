@@ -7,7 +7,6 @@ import pytorch_lightning as pl
 from torch import nn
 from lightning_rl.models.on_policy_models import PPO
 from torch import distributions
-from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike
 
 
 class AtariPPO(PPO):
@@ -45,7 +44,17 @@ class AtariPPO(PPO):
     features = self.feature_net(x)
     action_probabilities = self.actor(features)
     dist = distributions.Categorical(probs=action_probabilities)
-    return dist, self.critic(features).flatten()
+    actions = dist.sample()
+    values = self.critic(features).flatten()
+    return actions, values
+
+  def evaluate_actions(self, observations: torch.Tensor, actions: torch.Tensor):
+    features = self.feature_net(observations)
+    action_probabilities = self.actor(features)
+    dist = distributions.Categorical(probs=action_probabilities)
+    log_prob = dist.log_prob(actions)
+    entropy = dist.entropy()
+    return log_prob, entropy
 
   def configure_optimizers(self):
     optimizer = torch.optim.Adam(self.parameters(), lr=2.5e-4, eps=1e-5)
@@ -88,11 +97,11 @@ if __name__ == '__main__':
   ppo = AtariPPO(env=env,
                  n_rollouts_per_epoch=10,
                  n_steps_per_rollout=128,
-                 n_gradient_steps=3,
+                 n_gradient_steps=10,
                  batch_size=256,
                  gamma=0.99,
-                 gae_lambda=0.9,
-                 value_coef=0.5,
+                 gae_lambda=0.95,
+                 value_coef=1,
                  entropy_coef=0.01,
                  seed=seed,
                  normalize_advantage=True,
