@@ -44,7 +44,17 @@ class AtariA2C(A2C):
     features = self.feature_net(x)
     action_probabilities = self.actor(features)
     dist = distributions.Categorical(probs=action_probabilities)
-    return dist, self.critic(features).flatten()
+    actions = dist.sample()
+    values = self.critic(features).flatten()
+    return actions, values
+
+  def evaluate_actions(self, observations: torch.Tensor, actions: torch.Tensor):
+    features = self.feature_net(observations)
+    action_probabilities = self.actor(features)
+    dist = distributions.Categorical(probs=action_probabilities)
+    log_prob = dist.log_prob(actions)
+    entropy = dist.entropy()
+    return log_prob, entropy
 
   def configure_optimizers(self):
     optimizer = torch.optim.Adam(self.parameters(), lr=2.5e-4, eps=1e-5)

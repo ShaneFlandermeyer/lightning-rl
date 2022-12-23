@@ -63,14 +63,15 @@ class PPO(OnPolicyModel):
         Minibatch from the current rollout
     batch_idx : int
         Batch index
-        
+
     Returns
     -------
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    dist, values = self.forward(batch.observations)
-    log_probs = dist.log_prob(batch.actions.flatten())
+    actions, values = self.forward(batch.observations)
+    log_probs, entropy = self.evaluate_actions(
+        batch.observations, batch.actions)
     values = values.flatten()
 
     advantages = batch.advantages
@@ -93,13 +94,16 @@ class PPO(OnPolicyModel):
     else:
       # Clip the difference between the old and new value functions
       values_pred = batch.values + torch.clamp(values - batch.values,
-                                                   -self.value_clip_range,
-                                                   self.value_clip_range)
+                                               -self.value_clip_range,
+                                               self.value_clip_range)
     # Value loss using the TD(gae_lambda) target
     value_loss = F.mse_loss(batch.returns, values_pred)
 
     # Use entropy to discourage collapse into a determinsitic policy
-    entropy_loss = -dist.entropy().mean()
+    if entropy is None:
+      entropy_loss = -torch.mean(-log_probs)
+    else:
+      entropy_loss = -torch.mean(entropy)
     # Total loss is the sum of all losses
     loss = policy_loss + self.value_coef * \
         value_loss + self.entropy_coef * entropy_loss
@@ -110,7 +114,8 @@ class PPO(OnPolicyModel):
       approx_kl = torch.mean(batch.log_probs - log_probs)
       explained_var = explained_variance(batch.values, batch.returns)
 
-    # TODO: Implement early stopping logic when the approximate KL exceeds the target KL parameter
+    if self.target_kl is not None and approx_kl > 1.5 * self.target_kl:
+      self.continue_training = False
 
     self.log_dict({
         'train/total_loss': loss,
@@ -124,20 +129,3 @@ class PPO(OnPolicyModel):
         prog_bar=False, logger=True
     )
     return loss
-
-  def forward(self,
-              x: torch.Tensor) -> Tuple[distributions.Distribution, torch.Tensor]:
-    """
-    Run the actor and critic network on the input observations
-
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input observations
-
-    Returns
-    -------
-    Tuple[distributions.Distribution, torch.Tensor]
-        The deterministic action of the actor
-    """
-    raise NotImplementedError

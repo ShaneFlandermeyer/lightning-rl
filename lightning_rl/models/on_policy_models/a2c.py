@@ -79,9 +79,9 @@ class A2C(OnPolicyModel):
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    dist, values = self.forward(batch.observations)
-    log_probs = dist.log_prob(batch.actions.flatten())
-    entropy = dist.entropy()
+    actions, values = self.forward(batch.observations)
+    log_probs, entropy = self.evaluate_actions(
+        batch.observations, batch.actions)
     values = values.flatten()
 
     advantages = batch.advantages

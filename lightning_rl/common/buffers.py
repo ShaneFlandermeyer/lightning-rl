@@ -1,6 +1,6 @@
 from collections import deque
 from typing import NamedTuple, Tuple
-from gym import spaces
+from gymnasium import spaces
 import numpy as np
 
 import torch
@@ -256,11 +256,14 @@ class RolloutBuffer():
     observations = observations.view(
         (-1, *observations.shape[2:]))
     actions = actions.view((-1, *actions.shape[2:]))
-    rewards = rewards.flatten()
-    values = values.flatten()
-    log_probs = log_probs.flatten()
-    advantages = advantages.flatten()
-    returns = returns.flatten()
+    rewards = rewards.view((-1, *rewards.shape[2:]))
+    values = values.view((-1, *values.shape[2:]))
+    log_probs = log_probs.view(-1, *log_probs.shape[2:])
+    advantages = advantages.view((-1, *advantages.shape[2:]))
+    if log_probs.ndim > 1:
+      # For multi-action spaces
+      advantages.unsqueeze_(-1)
+    returns = returns.view((-1, *returns.shape[2:]))
 
     # Return a batch of experiences
     return RolloutBatch(

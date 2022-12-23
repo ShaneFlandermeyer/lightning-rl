@@ -1,4 +1,4 @@
-from gym import spaces
+from gymnasium import spaces
 from typing import Tuple
 import numpy as np
 import torch

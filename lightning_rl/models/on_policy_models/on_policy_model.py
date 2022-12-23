@@ -1,6 +1,6 @@
 from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 from lightning_rl.common.buffers import RolloutBuffer, RolloutSample
@@ -75,6 +75,7 @@ class OnPolicyModel(RLModel):
     """
     assert self._last_obs is not None, "No previous observation was provided"
     with torch.no_grad():
+      self.continue_training = True
       for _ in range(self.n_rollouts_per_epoch):
         self.eval()
         while not self.rollout_buffer.full():
@@ -82,14 +83,12 @@ class OnPolicyModel(RLModel):
           obs_tensor = torch.as_tensor(self._last_obs).to(
               device=self.device, dtype=torch.float32)
 
-          # Compute actions and log-probabilities
-          action_dist, value_tensor = self.forward(obs_tensor)
-          action_tensor = action_dist.sample()
-          log_prob_tensor = action_dist.log_prob(action_tensor)
+          # Compute actions, values, and log-probs
+          action_tensor, value_tensor = self.forward(obs_tensor)
+          log_prob_tensor, _ = self.evaluate_actions(obs_tensor, action_tensor)
           actions = action_tensor.cpu().numpy()
           # Perform actions and update the environment
-          new_obs, rewards, terminated, truncated, infos = self.env.step(
-              actions)
+          new_obs, rewards, terminated, truncated, infos = self.env.step(actions)
           new_dones = terminated
           # Convert buffer entries to tensor
           if isinstance(self.action_space, gym.spaces.Discrete):
@@ -115,7 +114,7 @@ class OnPolicyModel(RLModel):
 
         final_obs_tensor = torch.as_tensor(new_obs).to(
             device=self.device, dtype=torch.float32)
-        _, final_value_tensor = self.forward(final_obs_tensor)
+        final_value_tensor = self.forward(final_obs_tensor)[1]
         new_done_tensor = torch.as_tensor(new_dones).to(
             device=obs_tensor.device, dtype=torch.float32)
         samples = self.rollout_buffer.finalize(
@@ -124,9 +123,12 @@ class OnPolicyModel(RLModel):
         )
         self.rollout_buffer.reset()
 
-        # Train on minibatches from the current rollout. Some algorithms can only do this once for a given policy (e.g., A2C), but more sample-efficient algorithms can re-use the rollout data for multiple gradient update steps (e.g., PPO).
+        # Train on minibatches from the current rollout. 
         self.train()
         for _ in range(self.n_gradient_steps):
+          # Check if the training_step has requested to stop training on the current batch.
+          if not self.continue_training:
+            break
           indices = np.random.permutation(
               self.n_steps_per_rollout * self.n_envs)
           for idx in indices:
@@ -146,3 +148,40 @@ class OnPolicyModel(RLModel):
         rollout_generator=self.collect_rollouts,
     )
     return DataLoader(dataset=self.dataset, batch_size=self.batch_size)
+
+  def forward(self,
+              observation: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute the action and value for the given observation
+
+    Parameters
+    ----------
+    observation : torch.Tensor
+        Observation Tensor
+
+    Returns
+    -------
+    Tuple[torch.Tensor, torch.Tensor]
+        The action and value for the given observation
+    """
+    raise NotImplementedError
+
+  def evaluate_actions(self,
+                       observations: torch.Tensor,
+                       actions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute the log probability and entropy for the given actions for the current state
+
+    Parameters
+    ----------
+    observations : torch.Tensor
+        Current environment state/observation
+    actions : torch.Tensor
+        Actions to evaluate
+
+    Returns
+    -------
+    Tuple[torch.Tensor, torch.Tensor]
+        Tuple containing the log probability and entropy for the given actions
+    """
+    raise NotImplementedError

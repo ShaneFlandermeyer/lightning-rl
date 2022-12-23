@@ -10,6 +10,7 @@ pytorch-lightning = "^1.7.7"
 opencv-python = "^4.6.0"
 gym = {extras = ["accept-rom-license", "all"], version = "^0.26.2"}
 torch = "^1.13.0"
+Gymnasium = "^0.26.3"
 
 [tool.poetry.dev-dependencies]
 
