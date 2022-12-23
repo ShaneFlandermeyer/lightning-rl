@@ -260,7 +260,7 @@ class RolloutBuffer():
     values = values.view((-1, *values.shape[2:]))
     log_probs = log_probs.view(-1, *log_probs.shape[2:])
     advantages = advantages.view((-1, *advantages.shape[2:]))
-    if len(log_probs.shape) > 1:
+    if log_probs.ndim > 1:
       # For multi-action spaces
       advantages.unsqueeze_(-1)
     returns = returns.view((-1, *returns.shape[2:]))
