@@ -8,6 +8,11 @@ from torch import nn
 from lightning_rl.models.on_policy_models import PPO
 from torch import distributions
 
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
 
 class AtariPPO(PPO):
   def __init__(self,
@@ -17,26 +22,24 @@ class AtariPPO(PPO):
     super().__init__(env=env,
                      **kwargs)
     self.feature_net = nn.Sequential(
-        nn.Conv2d(
-            self.observation_space.shape[0], 32, kernel_size=8, stride=4),
+        layer_init(nn.Conv2d(
+            self.observation_space.shape[0], 32, kernel_size=8, stride=4)),
         nn.ReLU(),
-        nn.Conv2d(32, 64, kernel_size=4, stride=2),
+        layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2)),
         nn.ReLU(),
-        nn.Conv2d(64, 64, kernel_size=3, stride=1),
+        layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1)),
         nn.ReLU(),
         nn.Flatten(start_dim=1, end_dim=-1),
-        nn.LazyLinear(512),
+        layer_init(nn.Linear(64*7*7, 512)),
         nn.ReLU(),
     )
-
     self.actor = nn.Sequential(
-        nn.Linear(512, self.action_space.n),
+        layer_init(nn.Linear(512, self.action_space.n)),
         nn.Softmax(dim=1),
     )
 
-    self.critic = nn.Sequential(
-        nn.Linear(512, 1)
-    )
+    self.critic = layer_init(nn.Linear(512, 1))
+    
 
     self.save_hyperparameters()
 

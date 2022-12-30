@@ -82,22 +82,22 @@ class OnPolicyModel(RLModel):
           # Convert to pytorch tensor, let lightning take care of any GPU transfers
           obs_tensor = torch.as_tensor(self._last_obs).to(
               device=self.device, dtype=torch.float32)
-
+          done_tensor = torch.as_tensor(
+              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
           # Compute actions, values, and log-probs
           action_tensor, value_tensor = self.forward(obs_tensor)
-          log_prob_tensor, _ = self.evaluate_actions(obs_tensor, action_tensor)
-          actions = action_tensor.cpu().numpy()
-          # Perform actions and update the environment
-          new_obs, rewards, terminated, truncated, infos = self.env.step(actions)
-          new_dones = terminated
-          # Convert buffer entries to tensor
           if isinstance(self.action_space, gym.spaces.Discrete):
             # Reshape in case of discrete actions
             action_tensor = action_tensor.view(-1, 1)
+          log_prob_tensor, _ = self.evaluate_actions(obs_tensor, action_tensor)
+          actions = action_tensor.cpu().numpy()
+          # Perform actions and update the environment
+          new_obs, rewards, terminated, truncated, infos = self.env.step(
+              actions)
+          new_dones = terminated
+          # Convert buffer entries to tensor
           reward_tensor = torch.as_tensor(rewards).to(
               device=obs_tensor.device, dtype=torch.float32)
-          done_tensor = torch.as_tensor(
-              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
           # Store the data in the rollout buffer
           self.rollout_buffer.add(
               obs_tensor,
@@ -106,12 +106,14 @@ class OnPolicyModel(RLModel):
               done_tensor,
               value_tensor,
               log_prob_tensor)
-          self._last_obs = new_obs
-          self._last_dones = new_dones
+          self._last_obs = torch.as_tensor(new_obs, dtype=torch.float32).to(
+              self.device)
+          self._last_dones = torch.as_tensor(new_dones).to(self.device)
 
           # Update the number of environment steps taken across ALL agents
           self.total_step_count += self.n_envs
 
+        # Use GAE to compute the advantage and return
         final_obs_tensor = torch.as_tensor(new_obs).to(
             device=self.device, dtype=torch.float32)
         final_value_tensor = self.forward(final_obs_tensor)[1]
@@ -123,9 +125,9 @@ class OnPolicyModel(RLModel):
         )
         self.rollout_buffer.reset()
 
-        # Train on minibatches from the current rollout. 
+        # Train on minibatches from the current rollout.
         self.train()
-        for _ in range(self.n_gradient_steps):
+        for epoch in range(self.n_gradient_steps):
           # Check if the training_step has requested to stop training on the current batch.
           if not self.continue_training:
             break
