@@ -18,9 +18,12 @@ from lightning_rl.models.on_policy_models.on_policy_model import OnPolicyModel
 class RecurrentOnPolicyModel(OnPolicyModel):
   """TODO: This should probably subclass from a RecurrentOnPolicyModel class instead"""
 
-  def __init__(self, *args, **kwargs):
+  def __init__(self,
+               *args,
+               **kwargs):
     super().__init__(*args, **kwargs)
     self._last_hidden_state = None
+    self.initial_hidden_state = None
 
     self.rollout_buffer = RecurrentRolloutBuffer(
         self.n_steps_per_rollout,
@@ -37,16 +40,10 @@ class RecurrentOnPolicyModel(OnPolicyModel):
       for _ in range(self.n_rollouts_per_epoch):
         self.eval()
         # The initial hidden state gets used in the training step so we can reconstruct the probability distribution in the rollout. See LSTM implementation detail #5 here: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
-        if self._last_hidden_state is None:
-          self._last_hidden_state = (
-              torch.zeros(self.lstm.num_layers, self.n_envs,
-                          self.lstm.hidden_size).to(self.device),
-              torch.zeros(self.lstm.num_layers, self.n_envs,
-                          self.lstm.hidden_size).to(self.device),
-          )
-        self.initial_hidden_state = (
-            self._last_hidden_state[0].clone(),
-            self._last_hidden_state[1].clone())
+        if self._last_hidden_state is not None:
+          self.initial_hidden_state = (
+              self._last_hidden_state[0].clone(),
+              self._last_hidden_state[1].clone())
         while not self.rollout_buffer.full():
           # Convert to pytorch tensor, let lightning take care of any GPU transfers
           obs_tensor = torch.as_tensor(self._last_obs).to(
@@ -101,7 +98,7 @@ class RecurrentOnPolicyModel(OnPolicyModel):
           # Check if the training_step has requested to stop training on the current batch.
           if not self.continue_training:
             break
-
+          # If recurrent layers are used, the training batch samples should occur in the same order they were collected. Therefore, minibatches are shuffled by environment instead. 
           np.random.shuffle(env_inds)
           for start in range(0, self.n_envs, envs_per_batch):
             end = start + envs_per_batch

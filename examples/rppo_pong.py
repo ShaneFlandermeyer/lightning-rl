@@ -67,10 +67,23 @@ class AtariPPO(RecurrentPPO):
                  hidden_state: Tuple[torch.Tensor],
                  done: torch.Tensor):
     hidden = self.feature_net(x / 255)
-    
+
+    if hidden_state is None:
+      hidden_state = (
+          torch.zeros(self.lstm.num_layers, self.n_envs,
+                      self.lstm.hidden_size).to(self.device),
+          torch.zeros(self.lstm.num_layers, self.n_envs,
+                      self.lstm.hidden_size).to(self.device),
+      )
+    # Also need to initialize these on the first episode. I'm not a big fan of doing this here, but I can't think of anywhere else to put it.
+    if self._last_hidden_state is None:
+      self._last_hidden_state = hidden_state
+    if self.initial_hidden_state is None:
+      self.initial_hidden_state = (
+          self._last_hidden_state[0].clone(),
+          self._last_hidden_state[1].clone())
 
     # LSTM logic
-    
     batch_size = hidden_state[0].shape[1]
     hidden = hidden.reshape((-1, batch_size, self.lstm.input_size))
     done = done.reshape((-1, batch_size)).to(self.device)
