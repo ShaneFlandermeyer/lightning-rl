@@ -10,7 +10,7 @@ from lightning_rl.models.on_policy_models import PPO
 from torch import distributions
 from torch.distributions.categorical import Categorical
 
-from lightning_rl.models.on_policy_models.rppo import RecurrentPPO
+from lightning_rl.models.on_policy_models.recurrent_ppo import RecurrentPPO
 
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -22,7 +22,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 def make_env(env_id, seed, idx):
 
   def thunk():
-    env = gym.make("PongNoFrameskip-v4")
+    env = gym.make(env_id)
     env = gym.wrappers.AtariPreprocessing(
         env, screen_size=84, grayscale_obs=True, grayscale_newaxis=False)
     env = gym.wrappers.FrameStack(env, num_stack=1)
@@ -100,27 +100,39 @@ class AtariPPO(RecurrentPPO):
     new_hidden = torch.flatten(torch.cat(new_hidden), 0, 1)
     return new_hidden, hidden_state
 
-  def act(self, x, hidden_state, done, action=None):
+  def forward(self,
+              x: torch.Tensor,
+              hidden_state: torch.Tensor,
+              done: torch.Tensor):
     hidden, hidden_state = self.get_states(x, hidden_state, done)
     action_logits = self.actor(hidden)
-    values = self.critic(hidden).flatten()
+    value = self.critic(hidden).flatten()
+    return action_logits, value, hidden_state
+
+  def act(self,
+          observation: torch.Tensor,
+          hidden_state: torch.Tensor,
+          done: torch.Tensor):
+    action_logits, values, hidden_state = self.forward(
+        observation, hidden_state, done)
     action_probs = Categorical(logits=action_logits)
-    if action is None:
-      action = action_probs.sample()
-    return action, action_probs.log_prob(action), action_probs.entropy(), values, hidden_state
+    action = action_probs.sample()
+    return action, values, action_probs.log_prob(action), action_probs.entropy(), hidden_state
+
+  def evaluate_actions(self,
+                      observations: torch.Tensor,
+                      actions: torch.Tensor,
+                      hidden_states: torch.Tensor,
+                      dones: torch.Tensor,
+                      ):
+    action_logits, value, hidden_states = self.forward(
+        observations, hidden_states, dones)
+    action_dist = Categorical(logits=action_logits)
+    return action_dist.log_prob(actions), action_dist.entropy(), value
 
   def configure_optimizers(self):
     optimizer = torch.optim.Adam(self.parameters(), lr=2.5e-4, eps=1e-5)
     return optimizer
-
-  def on_train_epoch_end(self) -> None:
-    if self.env.return_queue and self.env.length_queue:
-      self.log_dict({
-          'train/mean_episode_reward': np.mean(self.env.return_queue),
-          'train/mean_episode_length': np.mean(self.env.length_queue),
-          'train/total_step_count': float(self.total_step_count),
-      },
-          prog_bar=True, logger=True)
 
 
 if __name__ == '__main__':

@@ -85,27 +85,23 @@ class OnPolicyModel(RLModel):
           done_tensor = torch.as_tensor(
               self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
           # Compute actions, values, and log-probs
-          action_tensor, value_tensor = self.forward(obs_tensor)
-          if isinstance(self.action_space, gym.spaces.Discrete):
-            # Reshape in case of discrete actions
-            action_tensor = action_tensor.view(-1, 1)
-          log_prob_tensor, _ = self.evaluate_actions(obs_tensor, action_tensor)
-          actions = action_tensor.cpu().numpy()
+          action, value, log_prob, entropy = self.act(
+              obs_tensor)
           # Perform actions and update the environment
           new_obs, rewards, terminated, truncated, infos = self.env.step(
-              actions)
+              action.cpu().numpy())
           new_dones = terminated
           # Convert buffer entries to tensor
           reward_tensor = torch.as_tensor(rewards).to(
               device=obs_tensor.device, dtype=torch.float32)
           # Store the data in the rollout buffer
           self.rollout_buffer.add(
-              obs_tensor,
-              action_tensor,
-              reward_tensor,
-              done_tensor,
-              value_tensor,
-              log_prob_tensor)
+              obs=obs_tensor,
+              action=action,
+              reward=reward_tensor,
+              done=done_tensor,
+              value=value,
+              log_prob=log_prob)
           self._last_obs = torch.as_tensor(new_obs, dtype=torch.float32).to(
               self.device)
           self._last_dones = torch.as_tensor(new_dones).to(self.device)
@@ -152,9 +148,9 @@ class OnPolicyModel(RLModel):
     return DataLoader(dataset=self.dataset, batch_size=self.batch_size)
 
   def forward(self,
-              observation: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+              observation: torch.Tensor) -> Tuple[torch.Tensor, ...]:
     """
-    Compute the action and value for the given observation
+    Compute the unprocessed output of the network. These outputs do not have to take a specific form. It is up to the act() function to process the output into the desired form.
 
     Parameters
     ----------
@@ -163,16 +159,36 @@ class OnPolicyModel(RLModel):
 
     Returns
     -------
-    Tuple[torch.Tensor, torch.Tensor]
-        The action and value for the given observation
+    Tuple[torch.Tensor, ...]
+        The network output
+    """
+    raise NotImplementedError
+
+  def act(self, x: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+    """
+    Compute the processed output of the network. 
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input observation
+
+    Returns
+    -------
+    Tuple[torch.Tensor, ...]
+        The elements of the output tuple are:
+        - action: The action selected by the network
+        - value: The value of the input observation
+        - log_prob: The log-probability of the selected action
+        - entropy: The entropy of the action distribution
     """
     raise NotImplementedError
 
   def evaluate_actions(self,
                        observations: torch.Tensor,
-                       actions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+                       actions: torch.Tensor) -> Tuple[torch.Tensor, ...]:
     """
-    Compute the log probability and entropy for the given actions for the current state
+    Compute the log-probability of the input action, along with the entropy of the action distribution and the value of the input observation.
 
     Parameters
     ----------
@@ -183,7 +199,10 @@ class OnPolicyModel(RLModel):
 
     Returns
     -------
-    Tuple[torch.Tensor, torch.Tensor]
-        Tuple containing the log probability and entropy for the given actions
+    Tuple[torch.Tensor, ...]
+        The elements of the output tuple are:
+        - log_prob: The log-probability of the selected action
+        - entropy: The entropy of the action distribution
+        - value: The value of the input observation
     """
     raise NotImplementedError

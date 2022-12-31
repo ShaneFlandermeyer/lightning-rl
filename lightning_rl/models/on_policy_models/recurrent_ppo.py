@@ -1,184 +1,132 @@
-import numpy as np
 import torch
-from lightning_rl.common.buffers import RolloutBatch, RolloutSample
+from lightning_rl.common.buffers import RecurrentRolloutBatch
 from lightning_rl.common.utils import explained_variance
-from lightning_rl.models.on_policy_models import PPO
+from lightning_rl.models.on_policy_models import OnPolicyModel
 import gym
-from typing import Iterator, Tuple, Union, Optional
+from typing import Tuple, Union, Optional
 from torch import distributions
 import torch.nn.functional as F
-import torch.nn as nn
+
+from lightning_rl.models.on_policy_models.recurrent_on_policy_model import RecurrentOnPolicyModel
 
 
-class RecurrentPPO(PPO):
-  """TODO: This should probably subclass from a RecurrentOnPolicyModel class instead"""
+class RecurrentPPO(RecurrentOnPolicyModel):
+  """
+  Proximal policy optimization (PPO) algorithm
 
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self._last_lstm_states = None
+  Parameters
+  ----------
+  OnPolicyModel : _type_
+      _description_
+  """
 
-  def collect_rollouts(self) -> Iterator[RolloutSample]:
+  def __init__(self,
+               env: Union[gym.Env, gym.vector.VectorEnv, str],
+               n_steps_per_rollout: int = 10,
+               n_rollouts_per_epoch: int = 100,
+               n_gradient_steps: int = 10,
+               batch_size: int = 64,
+               gamma: float = 0.99,
+               gae_lambda: float = 1.0,
+               policy_clip_range: float = 0.2,
+               value_clip_range: Optional[float] = None,
+               target_kl: Optional[float] = None,
+               value_coef: float = 0.5,
+               entropy_coef: float = 0.0,
+               normalize_advantage: bool = True,
+               seed: Optional[int] = None,
+               **kwargs,
+               ) -> None:
+    super().__init__(
+        env=env,
+        n_steps_per_rollout=n_steps_per_rollout,
+        n_rollouts_per_epoch=n_rollouts_per_epoch,
+        n_gradient_steps=n_gradient_steps,
+        batch_size=batch_size,
+        gamma=gamma,
+        gae_lambda=gae_lambda,
+        seed=seed,
+        **kwargs,
+    )
+    self.policy_clip_range = policy_clip_range
+    self.value_clip_range = value_clip_range
+    self.target_kl = target_kl
+    self.value_coef = value_coef
+    self.entropy_coef = entropy_coef
+    self.normalize_advantage = normalize_advantage
+
+  def training_step(self, batch: RecurrentRolloutBatch, batch_idx: int) -> float:
     """
-    Perform rollouts in the environment and return the results
+    Perform the PPO update step
 
-    Yields
-    ------
-    Iterator[RolloutSample]
-        Metrics from a randomized single time step in the current rollout (from multiple agents if the environment is vectorized). These metrics include:
-        - observation tensors
-        - actions tensors
-        - state-values
-        - log-probabilities over actions,
-        - Advantages
-        - Returns
+    Parameters
+    ----------
+    batch : RolloutBatch
+        Minibatch from the current rollout
+    batch_idx : int
+        Batch index
+
+    Returns
+    -------
+    float
+        Total loss = policy loss + value loss + entropy_loss
     """
-    assert self._last_obs is not None, "No previous observation was provided"
-    if self._last_lstm_states is None:
-      hidden_state_shape = (self.lstm.num_layers,
-                            self.n_envs, self.lstm.hidden_size)
-      self._last_lstm_states = (
-          torch.zeros(hidden_state_shape, device=self.device,
-                      dtype=torch.float32),
-          torch.zeros(hidden_state_shape, device=self.device,
-                      dtype=torch.float32),
-      )
+    # Have to switch so the batch dimension is in the middle
+    log_probs, entropy, values = self.evaluate_actions(
+        batch.observations, batch.actions, batch.hidden_states, batch.dones)
+
+    advantages = batch.advantages
+    if self.normalize_advantage:
+      advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+    # Ratio between old and new policy. Should be one at the first iteration.
+    ratio = torch.exp(log_probs - batch.log_probs)
+
+    # Compute the clipped surrogate loss
+    policy_loss_1 = advantages * ratio
+    policy_loss_2 = advantages * torch.clamp(ratio,
+                                             1 - self.policy_clip_range,
+                                             1 + self.policy_clip_range)
+    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+
+    if self.value_clip_range is None:
+      # Directly use the latest value network output to compute the loss
+      values_pred = values
+    else:
+      # Clip the difference between the old and new value functions
+      values_pred = batch.values + torch.clamp(values - batch.values,
+                                               -self.value_clip_range,
+                                               self.value_clip_range)
+    # Value loss using the TD(gae_lambda) target
+    value_loss = F.mse_loss(batch.returns, values_pred)
+
+    # Use entropy to discourage collapse into a determinsitic policy
+    if entropy is None:
+      entropy_loss = -torch.mean(-log_probs)
+    else:
+      entropy_loss = -torch.mean(entropy)
+    # Total loss is the sum of all losses
+    loss = policy_loss + self.value_coef * \
+        value_loss + self.entropy_coef * entropy_loss
 
     with torch.no_grad():
-      self.continue_training = True
-      for _ in range(self.n_rollouts_per_epoch):
-        self.eval()
-        lstm_states = self._last_lstm_states
-        while not self.rollout_buffer.full():
-          # Convert to pytorch tensor, let lightning take care of any GPU transfers
-          obs_tensor = torch.as_tensor(self._last_obs).to(
-              device=self.device, dtype=torch.float32)
-          done_tensor = torch.as_tensor(
-              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
+      clip_fraction = torch.mean(
+          (torch.abs(ratio - 1) > self.policy_clip_range).float())
+      approx_kl = torch.mean(batch.log_probs - log_probs)
+      explained_var = explained_variance(batch.values, batch.returns)
 
-          # Compute actions, values, and log-probs
-          action_tensor, value_tensor, lstm_states = self.forward(
-              obs_tensor, lstm_states, done_tensor)
-          log_prob_tensor, _ = self.evaluate_actions(
-              obs_tensor, action_tensor, lstm_states, done_tensor)
-          actions = action_tensor.cpu().numpy()
-          # Perform actions and update the environment
-          new_obs, rewards, terminated, truncated, infos = self.env.step(
-              actions)
-          new_dones = terminated
-          # Convert buffer entries to tensor
-          if isinstance(self.action_space, gym.spaces.Discrete):
-            # Reshape in case of discrete actions
-            action_tensor = action_tensor.view(-1, 1)
-          reward_tensor = torch.as_tensor(rewards).to(
-              device=obs_tensor.device, dtype=torch.float32)
+    if self.target_kl is not None and approx_kl > 1.5 * self.target_kl:
+      self.continue_training = False
 
-          # Store the data in the rollout buffer
-          self.rollout_buffer.add(
-              obs_tensor,
-              action_tensor,
-              reward_tensor,
-              done_tensor,
-              value_tensor,
-              log_prob_tensor)
-          self._last_obs = new_obs
-          self._last_dones = new_dones
-          self._last_lstm_states = lstm_states
-
-          # Update the number of environment steps taken across ALL agents
-          self.total_step_count += self.n_envs
-
-        final_obs_tensor = torch.as_tensor(new_obs).to(
-            device=self.device, dtype=torch.float32)
-        new_done_tensor = torch.as_tensor(new_dones).to(
-            device=obs_tensor.device, dtype=torch.float32)
-        final_value_tensor = self.forward(
-            final_obs_tensor, lstm_states, new_done_tensor)[1]
-
-        samples = self.rollout_buffer.finalize(
-            final_value_tensor,
-            new_done_tensor
-        )
-        self.rollout_buffer.reset()
-
-        # Train on minibatches from the current rollout.
-        self.train()
-        for _ in range(self.n_gradient_steps):
-          # Check if the training_step has requested to stop training on the current batch.
-          if not self.continue_training:
-            break
-          indices = np.random.permutation(
-              self.n_steps_per_rollout * self.n_envs)
-          for idx in indices:
-            yield RolloutSample(
-                observations=samples.observations[idx],
-                actions=samples.actions[idx],
-                values=samples.values[idx],
-                log_probs=samples.log_probs[idx],
-                advantages=samples.advantages[idx],
-                returns=samples.returns[idx])
-
-  @staticmethod
-  def _process_sequence(
-      features: torch.Tensor,
-      lstm_states: Tuple[torch.Tensor, torch.Tensor],
-      episode_starts: torch.Tensor,
-      lstm: nn.LSTM,
-  ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Do a forward pass in the LSTM network.
-    :param features: Input tensor
-    :param lstm_states: previous cell and hidden states of the LSTM
-    :param episode_starts: Indicates when a new episode starts,
-        in that case, we need to reset LSTM states.
-    :param lstm: LSTM object.
-    :return: LSTM output and updated LSTM states.
-    """
-    # LSTM logic
-    # (sequence length, batch size, features dim)
-    # (batch size = n_envs for data collection or n_seq when doing gradient update)
-    n_seq = lstm_states[0].shape[1]
-    # Batch to sequence
-    # (padded batch size, features_dim) -> (n_seq, max length, features_dim) -> (max length, n_seq, features_dim)
-    # note: max length (max sequence length) is always 1 during data collection
-    features_sequence = features.reshape(
-        (n_seq, -1, lstm.input_size)).swapaxes(0, 1)
-    episode_starts = episode_starts.reshape((n_seq, -1)).swapaxes(0, 1)
-
-    # If we don't have to reset the state in the middle of a sequence
-    # we can avoid the for loop, which speeds up things
-    if torch.all(episode_starts == 0.0):
-      lstm_output, lstm_states = lstm(features_sequence, lstm_states)
-      lstm_output = torch.flatten(
-          lstm_output.transpose(0, 1), start_dim=0, end_dim=1)
-      return lstm_output, lstm_states
-
-    lstm_output = []
-    # Iterate over the sequence
-    for features, episode_start in zip(features_sequence, episode_starts, strict=True):
-      hidden, lstm_states = lstm(
-          features.unsqueeze(dim=0),
-          (
-              # Reset the states at the beginning of a new episode
-              (1.0 - episode_start).view(1, n_seq, 1) * lstm_states[0],
-              (1.0 - episode_start).view(1, n_seq, 1) * lstm_states[1],
-          ),
-      )
-      lstm_output += [hidden]
-    # Sequence to batch
-    # (sequence length, n_seq, lstm_out_dim) -> (batch_size, lstm_out_dim)
-    lstm_output = torch.flatten(
-        torch.cat(lstm_output).transpose(0, 1), start_dim=0, end_dim=1)
-    return lstm_output, lstm_states
-
-  def forward(self,
-              x: torch.Tensor,
-              lstm_states: Tuple[torch.Tensor],
-              dones: torch.Tensor):
-    raise NotImplementedError
-
-  def evaluate_actions(self,
-                       observations: torch.Tensor,
-                       actions: torch.Tensor,
-                       lstm_states: Tuple[torch.Tensor],
-                       dones: torch.Tensor):
-    raise NotImplementedError
+    self.log_dict({
+        'train/total_loss': loss,
+        'train/policy_loss': policy_loss,
+        'train/value_loss': value_loss,
+        'train/entropy_loss': entropy_loss,
+        'train/clip_fraction': clip_fraction,
+        'train/approx_kl': approx_kl,
+        'train/explained_variance': explained_var,
+    },
+        prog_bar=False, logger=True
+    )
+    return loss

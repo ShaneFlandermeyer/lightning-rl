@@ -69,10 +69,7 @@ class PPO(OnPolicyModel):
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    actions, values = self.forward(batch.observations)
-    log_probs, entropy = self.evaluate_actions(
-        batch.observations, batch.actions)
-    values = values.flatten()
+    log_probs, entropy, values = self.evaluate_actions(batch.observations, batch.actions)
 
     advantages = batch.advantages
     if self.normalize_advantage:

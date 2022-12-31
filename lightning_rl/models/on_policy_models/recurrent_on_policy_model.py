@@ -12,25 +12,51 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
-from lightning_rl.models.on_policy_models.on_policy_model import OnPolicyModel
+from lightning_rl.models.rl_model import RLModel
 
 
-class RecurrentOnPolicyModel(OnPolicyModel):
+class RecurrentOnPolicyModel(RLModel):
   """TODO: This should probably subclass from a RecurrentOnPolicyModel class instead"""
 
   def __init__(self,
-               *args,
-               **kwargs):
-    super().__init__(*args, **kwargs)
-    self._last_hidden_state = None
-    self.initial_hidden_state = None
+               env: Union[gym.Env, gym.vector.VectorEnv, str],
+               n_steps_per_rollout: int,
+               n_rollouts_per_epoch: int,
+               n_gradient_steps: int,
+               batch_size: Optional[int] = None,
+               gamma: float = 0.99,
+               gae_lambda: float = 1.0,
+               seed: Optional[int] = None,
+               **kwargs) -> None:
+
+    super().__init__(
+        env=env,
+        support_multi_env=True,
+        seed=seed,
+        **kwargs,
+    )
+
+    self.n_steps_per_rollout = n_steps_per_rollout
+    self.n_rollouts_per_epoch = n_rollouts_per_epoch
+    self.n_gradient_steps = n_gradient_steps
+    if batch_size is None:
+      self.batch_size = self.n_steps_per_rollout * self.n_envs
+    else:
+      self.batch_size = batch_size
+    self.gamma = gamma
+    self.gae_lambda = gae_lambda
 
     self.rollout_buffer = RecurrentRolloutBuffer(
-        self.n_steps_per_rollout,
+        n_steps_per_rollout,
         gamma=self.gamma,
         gae_lambda=self.gae_lambda,
         n_envs=self.n_envs,
     )
+    self._last_hidden_state = None
+    self.initial_hidden_state = None
+
+    # Metrics
+    self.total_step_count = 0
 
   def collect_rollouts(self):
     assert self._last_obs is not None, "No previous observation was provided"
@@ -51,7 +77,7 @@ class RecurrentOnPolicyModel(OnPolicyModel):
           done_tensor = torch.as_tensor(
               self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
           # Compute actions, values, and log-probs
-          action, log_prob, _, value, hidden_state = self.act(
+          action, value, log_prob, entropy, hidden_state = self.act(
               obs_tensor, self._last_hidden_state, done_tensor)
           # Perform actions and update the environment
           new_obs, rewards, terminated, truncated, infos = self.env.step(
@@ -116,20 +142,6 @@ class RecurrentOnPolicyModel(OnPolicyModel):
                     self.initial_hidden_state[0][:, minibatch_env_inds],
                     self.initial_hidden_state[1][:, minibatch_env_inds]),
             )
-
-  def forward(self,
-              x: torch.Tensor,
-              hidden_states: Tuple[torch.Tensor],
-              dones: torch.Tensor):
-    raise NotImplementedError
-
-  def evaluate_actions(self,
-                       observations: torch.Tensor,
-                       actions: torch.Tensor,
-                       hidden_states: Tuple[torch.Tensor],
-                       dones: torch.Tensor):
-    raise NotImplementedError
-
   def train_dataloader(self):
     """
     Create the dataloader for our OnPolicyModel
@@ -138,4 +150,87 @@ class RecurrentOnPolicyModel(OnPolicyModel):
     self.dataset = OnPolicyDataset(
         rollout_generator=self.collect_rollouts,
     )
-    return DataLoader(dataset=self.dataset, batch_size=1)
+    return DataLoader(dataset=self.dataset, batch_size=None)
+
+  def forward(self, 
+              x: torch.Tensor, 
+              hidden_state: torch.Tensor, 
+              done: torch.Tensor):
+    """
+    Compute the unprocessed output of the network. These outputs do not have to take a specific form. It is up to the act() function to process the output into the desired form.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Observation Tensor
+    hidden_state : torch.Tensor
+        Hidden state of the recurrent layers
+    done : torch.Tensor
+        Tensor indicating whether the episode is done
+
+    Returns
+    -------
+    Tuple[torch.Tensor, ...]
+        The network output
+    """
+    raise NotImplementedError
+  
+  def act(self, 
+              x: torch.Tensor, 
+              hidden_state: torch.Tensor, 
+              done: torch.Tensor):
+    """
+    Compute the processed output of the network. 
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input observation
+    hidden_state : torch.Tensor
+        Hidden state of the recurrent layers
+    done : torch.Tensor
+        Tensor indicating whether the episode is done
+
+    Returns
+    -------
+    Tuple[torch.Tensor, ...]
+        The elements of the output tuple are:
+        - action: The action selected by the network
+        - value: The value of the input observation
+        - log_prob: The log-probability of the selected action
+        - entropy: The entropy of the action distribution
+        - hidden_state: the updated hidden state of the recurrent layers
+    """
+    raise NotImplementedError
+
+  def evaluate_actions(self,
+                       observations: torch.Tensor,
+                       actions: torch.Tensor,
+                       hidden_states: Tuple[torch.Tensor],
+                       dones: torch.Tensor):
+    """
+    Compute the log-probability of the input actions, along with the entropy of the action distribution and the value of the input observation.
+
+    Parameters
+    ----------
+    observations : torch.Tensor
+        Current environment state/observation
+    actions : torch.Tensor
+        Actions to evaluate
+    hidden_states : torch.Tensor
+        Hidden state of the recurrent layers
+    dones : torch.Tensor
+        Tensor indicating whether the episode is done
+
+    Returns
+    -------
+    Tuple[torch.Tensor, ...]
+        The elements of the output tuple are:
+        - log_prob: The log-probability of the selected action
+        - entropy: The entropy of the action distribution
+        - value: The value of the input observation
+        - hidden_state: the updated hidden state of the recurrent layers
+    """
+    raise NotImplementedError
+
+  
