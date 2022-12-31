@@ -62,63 +62,7 @@ class RLModel(pl.LightningModule):
       )
 
     self.reset()
-
-  def act(
-      self,
-      state: np.ndarray,
-      deterministic: bool = False
-  ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Perform an action based on the current state of the environment
-
-    Parameters
-    ----------
-    state : np.ndarray
-        Input state
-    deterministic : bool, optional
-        If true, samples the action deterministically, by default False
-
-    Returns
-    -------
-    Tuple[np.ndarray, np.ndarray]
-        The action to perform
-    """
-    with torch.no_grad():
-      state = torch.tensor(state).to(self.device)
-      action = self.predict(state, deterministic=deterministic)
-
-    if isinstance(self.action_space, gym.spaces.Box):
-      action = np.clip(action, self.action_space.low, self.action_space.high)
-    elif isinstance(self.action_space, (gym.spaces.Discrete,
-                                        gym.spaces.MultiDiscrete,
-                                        gym.spaces.MultiBinary)):
-      action = action.astype(np.int32)
-
-    return action
-  
-  def predict(self,
-              obs: Union[Tuple, Dict[str, Any], np.ndarray, int], deterministic: bool = False) -> np.ndarray:
-    """
-    Override this function with the predict function of your own mode
-
-    Parameters
-    ----------
-    obs : Union[Tuple, Dict[str, Any], np.ndarray, int]
-        The input observations
-    deterministic : bool, optional
-        If true, samples the action deterministically, by default False
-
-    Returns
-    -------
-    np.ndarray
-        The chosen action
-
-    Raises
-    ------
-    NotImplementedError
-    """
-    raise NotImplementedError
-
+    
   def reset(self) -> None:
     """
     Reset the environment
@@ -173,3 +117,14 @@ class RLModel(pl.LightningModule):
     """
     o = network(torch.zeros(1, *self.observation_space.shape))
     return o.shape
+  
+  def on_train_epoch_end(self) -> None:
+    # Log episode statistics at the end of each epoch if the environment has the wrapper
+    if hasattr(self.env, "return_queue") and hasattr(self.env, "length_queue"):
+      if self.env.return_queue and self.env.length_queue:
+        self.log_dict({
+            'train/mean_episode_reward': np.mean(self.env.return_queue),
+            'train/mean_episode_length': np.mean(self.env.length_queue),
+            'train/total_step_count': float(self.total_step_count),
+        },
+            prog_bar=True, logger=True)
