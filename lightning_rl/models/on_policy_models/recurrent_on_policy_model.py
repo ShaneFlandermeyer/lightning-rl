@@ -23,7 +23,7 @@ class RecurrentOnPolicyModel(RLModel):
                n_steps_per_rollout: int,
                n_rollouts_per_epoch: int,
                n_gradient_steps: int,
-               batch_size: Optional[int] = None,
+               n_minibatch: int = 4,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                seed: Optional[int] = None,
@@ -35,14 +35,12 @@ class RecurrentOnPolicyModel(RLModel):
         seed=seed,
         **kwargs,
     )
-
+    assert self.n_envs % n_minibatch == 0, "n_envs must be divisible by n_minibatch"
     self.n_steps_per_rollout = n_steps_per_rollout
     self.n_rollouts_per_epoch = n_rollouts_per_epoch
     self.n_gradient_steps = n_gradient_steps
-    if batch_size is None:
-      self.batch_size = self.n_steps_per_rollout * self.n_envs
-    else:
-      self.batch_size = batch_size
+    self.n_minibatch = n_minibatch
+    self.batch_size = self.n_steps_per_rollout * self.n_envs
     self.gamma = gamma
     self.gae_lambda = gae_lambda
 
@@ -114,9 +112,7 @@ class RecurrentOnPolicyModel(RLModel):
 
         # Train on minibatches from the current rollout.
         self.train()
-        # TODO: Make this a parameter
-        num_minibatches = 4
-        envs_per_batch = self.n_envs // num_minibatches
+        envs_per_batch = self.n_envs // self.n_minibatch
         env_inds = np.arange(self.n_envs)
         flat_inds = np.arange(self.n_steps_per_rollout*self.n_envs).reshape(
             self.n_steps_per_rollout, self.n_envs)
@@ -124,7 +120,7 @@ class RecurrentOnPolicyModel(RLModel):
           # Check if the training_step has requested to stop training on the current batch.
           if not self.continue_training:
             break
-          # If recurrent layers are used, the training batch samples should occur in the same order they were collected. Therefore, minibatches are shuffled by environment instead. 
+          # If recurrent layers are used, the training batch samples should occur in the same order they were collected. Therefore, minibatches are shuffled by environment instead.
           np.random.shuffle(env_inds)
           for start in range(0, self.n_envs, envs_per_batch):
             end = start + envs_per_batch
@@ -142,19 +138,19 @@ class RecurrentOnPolicyModel(RLModel):
                     self.initial_hidden_state[0][:, minibatch_env_inds],
                     self.initial_hidden_state[1][:, minibatch_env_inds]),
             )
+
   def train_dataloader(self):
     """
     Create the dataloader for our OnPolicyModel
     """
-    # TODO: Modify this so I don't have to squeeze every field in the training_step
     self.dataset = OnPolicyDataset(
         rollout_generator=self.collect_rollouts,
     )
     return DataLoader(dataset=self.dataset, batch_size=None)
 
-  def forward(self, 
-              x: torch.Tensor, 
-              hidden_state: torch.Tensor, 
+  def forward(self,
+              x: torch.Tensor,
+              hidden_state: torch.Tensor,
               done: torch.Tensor):
     """
     Compute the unprocessed output of the network. These outputs do not have to take a specific form. It is up to the act() function to process the output into the desired form.
@@ -174,11 +170,11 @@ class RecurrentOnPolicyModel(RLModel):
         The network output
     """
     raise NotImplementedError
-  
-  def act(self, 
-              x: torch.Tensor, 
-              hidden_state: torch.Tensor, 
-              done: torch.Tensor):
+
+  def act(self,
+          x: torch.Tensor,
+          hidden_state: torch.Tensor,
+          done: torch.Tensor):
     """
     Compute the processed output of the network. 
 
@@ -232,5 +228,3 @@ class RecurrentOnPolicyModel(RLModel):
         - hidden_state: the updated hidden state of the recurrent layers
     """
     raise NotImplementedError
-
-  

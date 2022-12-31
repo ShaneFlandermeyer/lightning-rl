@@ -41,7 +41,7 @@ class AtariPPO(PPO):
     self.save_hyperparameters()
 
   def forward(self, x: torch.Tensor):
-    features = self.feature_net(x)
+    features = self.feature_net(x / 255.0)
     action_logits = self.actor(features)
     values = self.critic(features).flatten()
     return action_logits, values

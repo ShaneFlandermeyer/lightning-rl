@@ -66,7 +66,7 @@ class AtariPPO(RecurrentPPO):
                  x: torch.Tensor,
                  hidden_state: Tuple[torch.Tensor],
                  done: torch.Tensor):
-    hidden = self.feature_net(x / 255)
+    hidden = self.feature_net(x / 255.0)
 
     if hidden_state is None:
       hidden_state = (
@@ -120,11 +120,11 @@ class AtariPPO(RecurrentPPO):
     return action, values, action_probs.log_prob(action), action_probs.entropy(), hidden_state
 
   def evaluate_actions(self,
-                      observations: torch.Tensor,
-                      actions: torch.Tensor,
-                      hidden_states: torch.Tensor,
-                      dones: torch.Tensor,
-                      ):
+                       observations: torch.Tensor,
+                       actions: torch.Tensor,
+                       hidden_states: torch.Tensor,
+                       dones: torch.Tensor,
+                       ):
     action_logits, value, hidden_states = self.forward(
         observations, hidden_states, dones)
     action_dist = Categorical(logits=action_logits)
@@ -150,7 +150,7 @@ if __name__ == '__main__':
                  n_rollouts_per_epoch=5,
                  n_steps_per_rollout=128,
                  n_gradient_steps=4,
-                 batch_size=8*128,
+                 n_minibatch=4,
                  gamma=0.99,
                  gae_lambda=0.95,
                  value_coef=0.5,
