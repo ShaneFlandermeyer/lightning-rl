@@ -77,7 +77,6 @@ if __name__ == '__main__':
       screen_size=84,
       grayscale_obs=True,
       grayscale_newaxis=False,
-      scale_obs=True,
   )
   env = gym.wrappers.FrameStack(
       env=env,
