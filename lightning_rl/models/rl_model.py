@@ -34,7 +34,8 @@ class RLModel(pl.LightningModule):
       self,
       env: Union[str, gym.Env, gym.vector.VectorEnv],
       support_multi_env: bool = False,
-      seed: Optional[int] = None
+      seed: Optional[int] = None,
+      **kwargs
   ) -> None:
     super().__init__()
 

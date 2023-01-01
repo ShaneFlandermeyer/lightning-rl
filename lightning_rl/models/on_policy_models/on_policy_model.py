@@ -25,7 +25,7 @@ class OnPolicyModel(RLModel):
                env: Union[gym.Env, gym.vector.VectorEnv, str],
                n_steps_per_rollout: int,
                n_rollouts_per_epoch: int,
-               n_gradient_steps: int,
+               n_gradient_steps: int = 1,
                batch_size: Optional[int] = None,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
