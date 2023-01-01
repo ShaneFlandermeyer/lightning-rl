@@ -1,3 +1,4 @@
+import time
 from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
 import gymnasium as gym
