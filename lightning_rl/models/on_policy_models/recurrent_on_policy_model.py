@@ -56,7 +56,7 @@ class RecurrentOnPolicyModel(RLModel):
     # Metrics
     self.total_step_count = 0
 
-  def collect_rollouts(self):
+  def collect_rollouts(self) -> Iterator[RecurrentRolloutBatch]:
     assert self._last_obs is not None, "No previous observation was provided"
     with torch.no_grad():
       self.continue_training = True

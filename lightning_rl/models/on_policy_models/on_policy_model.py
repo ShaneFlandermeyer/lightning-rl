@@ -3,7 +3,7 @@ from typing import Any, Dict, Iterator, Optional, Tuple, Union
 import gymnasium as gym
 import numpy as np
 import torch
-from lightning_rl.common.buffers import RolloutBuffer, RolloutSample
+from lightning_rl.common.buffers import RolloutBatch, RolloutBuffer
 from lightning_rl.common.datasets import OnPolicyDataset
 from lightning_rl.common.utils import clip_actions
 from lightning_rl.models import RLModel
@@ -58,13 +58,13 @@ class OnPolicyModel(RLModel):
     # Metrics
     self.total_step_count = 0
 
-  def collect_rollouts(self) -> Iterator[RolloutSample]:
+  def collect_rollouts(self) -> Iterator[RolloutBatch]:
     """
     Perform rollouts in the environment and return the results
 
     Yields
     ------
-    Iterator[RolloutSample]
+    Iterator[RolloutBatch]
         Metrics from a randomized single time step in the current rollout (from multiple agents if the environment is vectorized). These metrics include:
         - observation tensors
         - actions tensors
@@ -123,20 +123,23 @@ class OnPolicyModel(RLModel):
 
         # Train on minibatches from the current rollout.
         self.train()
+        n_samples = self.n_steps_per_rollout * self.n_envs
         for epoch in range(self.n_gradient_steps):
           # Check if the training_step has requested to stop training on the current batch.
           if not self.continue_training:
             break
-          indices = np.random.permutation(
-              self.n_steps_per_rollout * self.n_envs)
-          for idx in indices:
-            yield RolloutSample(
-                observations=samples.observations[idx],
-                actions=samples.actions[idx],
-                values=samples.values[idx],
-                log_probs=samples.log_probs[idx],
-                advantages=samples.advantages[idx],
-                returns=samples.returns[idx])
+          indices = np.random.permutation(n_samples)
+          for start in range(0, n_samples, self.batch_size):
+            end = start + self.batch_size
+            minibatch_inds = indices[start:end]
+            yield RolloutBatch(
+                observations=samples.observations[minibatch_inds],
+                actions=samples.actions[minibatch_inds],
+                values=samples.values[minibatch_inds],
+                log_probs=samples.log_probs[minibatch_inds],
+                advantages=samples.advantages[minibatch_inds],
+                returns=samples.returns[minibatch_inds],
+            )
 
   def train_dataloader(self):
     """
@@ -145,7 +148,7 @@ class OnPolicyModel(RLModel):
     self.dataset = OnPolicyDataset(
         rollout_generator=self.collect_rollouts,
     )
-    return DataLoader(dataset=self.dataset, batch_size=self.batch_size)
+    return DataLoader(dataset=self.dataset, batch_size=None)
 
   def forward(self,
               observation: torch.Tensor) -> Tuple[torch.Tensor, ...]:
@@ -166,7 +169,7 @@ class OnPolicyModel(RLModel):
 
   def act(self, x: torch.Tensor) -> Tuple[torch.Tensor, ...]:
     """
-    Compute the processed output of the network. 
+    Compute the processed output of the network.
 
     Parameters
     ----------
