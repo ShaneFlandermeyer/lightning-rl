@@ -8,13 +8,7 @@ from torch import nn
 from lightning_rl.models.on_policy_models import PPO
 from torch import distributions
 from torch.distributions.categorical import Categorical
-
-
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-  torch.nn.init.orthogonal_(layer.weight, std)
-  torch.nn.init.constant_(layer.bias, bias_const)
-  return layer
-
+from lightning_rl.common.layer_init import ortho_init
 
 class AtariPPO(PPO):
   def __init__(self,
@@ -24,19 +18,19 @@ class AtariPPO(PPO):
     super().__init__(env=env,
                      **kwargs)
     self.feature_net = nn.Sequential(
-        layer_init(nn.Conv2d(
+        ortho_init(nn.Conv2d(
             self.observation_space.shape[0], 32, kernel_size=8, stride=4)),
         nn.ReLU(),
-        layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2)),
+        ortho_init(nn.Conv2d(32, 64, kernel_size=4, stride=2)),
         nn.ReLU(),
-        layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1)),
+        ortho_init(nn.Conv2d(64, 64, kernel_size=3, stride=1)),
         nn.ReLU(),
         nn.Flatten(start_dim=1, end_dim=-1),
-        layer_init(nn.Linear(64*7*7, 512)),
+        ortho_init(nn.Linear(64*7*7, 512)),
         nn.ReLU(),
     )
-    self.actor = layer_init(nn.Linear(512, self.action_space.n), std=0.01)
-    self.critic = layer_init(nn.Linear(512, 1), std=1)
+    self.actor = ortho_init(nn.Linear(512, self.action_space.n), std=0.01)
+    self.critic = ortho_init(nn.Linear(512, 1), std=1)
 
     self.save_hyperparameters()
 
@@ -102,7 +96,7 @@ if __name__ == '__main__':
   trainer = pl.Trainer(
       max_time="00:03:00:00",
       gradient_clip_val=0.5,
-      accelerator='gpu',
+      accelerator='cpu',
       devices=1,
   )
 
