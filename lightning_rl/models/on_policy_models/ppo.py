@@ -1,3 +1,4 @@
+import time
 import torch
 from lightning_rl.common.buffers import RolloutBatch
 from lightning_rl.common.utils import explained_variance
@@ -69,7 +70,8 @@ class PPO(OnPolicyModel):
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    log_probs, entropy, values = self.evaluate_actions(batch.observations, batch.actions)
+    log_probs, entropy, values = self.evaluate_actions(
+        batch.observations, batch.actions)
 
     advantages = batch.advantages
     if self.normalize_advantage:
@@ -122,6 +124,7 @@ class PPO(OnPolicyModel):
         'train/clip_fraction': clip_fraction,
         'train/approx_kl': approx_kl,
         'train/explained_variance': explained_var,
+        'train/FPS': self.total_step_count / (time.time() - self.start_time)
     },
         prog_bar=False, logger=True
     )

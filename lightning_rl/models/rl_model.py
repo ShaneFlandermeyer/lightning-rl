@@ -1,4 +1,5 @@
 import inspect
+import time
 import warnings
 import pytorch_lightning as pl
 import gymnasium as gym
@@ -33,7 +34,8 @@ class RLModel(pl.LightningModule):
       self,
       env: Union[str, gym.Env, gym.vector.VectorEnv],
       support_multi_env: bool = False,
-      seed: Optional[int] = None
+      seed: Optional[int] = None,
+      **kwargs
   ) -> None:
     super().__init__()
 
@@ -61,6 +63,7 @@ class RLModel(pl.LightningModule):
           "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
       )
 
+    self.start_time = time.time()
     self.reset()
     
   def reset(self) -> None:
@@ -68,7 +71,7 @@ class RLModel(pl.LightningModule):
     Reset the environment
     """
     self._last_obs = self.env.reset(seed=self.seed)[0]
-    self._last_dones = np.zeros((self.env.num_envs,), dtype=np.bool)
+    self._last_dones = np.zeros((self.env.num_envs,), dtype=np.uint8)
 
   def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
     """

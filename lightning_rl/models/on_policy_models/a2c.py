@@ -1,3 +1,4 @@
+import time
 from typing import Optional, Tuple, Union
 
 import gym
@@ -110,6 +111,7 @@ class A2C(OnPolicyModel):
         'train/value_loss': value_loss,
         'train/entropy_loss': entropy_loss,
         'train/explained_variance': explained_var,
+        'train/FPS': self.total_step_count / (time.time() - self.start_time)
         },
         prog_bar=False, logger=True
     )

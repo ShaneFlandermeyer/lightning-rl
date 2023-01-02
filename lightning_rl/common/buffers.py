@@ -43,17 +43,6 @@ class RolloutExperience(NamedTuple):
   value: torch.Tensor
   log_prob: torch.Tensor
 
-class RolloutSample(NamedTuple):
-  """
-  A backwards-looking rollout experience that includes the experience's advantage and return
-  """
-  observations: torch.Tensor
-  actions: torch.Tensor
-  values: torch.Tensor
-  log_probs: torch.Tensor
-  advantages: torch.Tensor
-  returns: torch.Tensor
-
 class RolloutBatch(NamedTuple):
   """
   A batch of complete rollout experiences.
@@ -64,7 +53,6 @@ class RolloutBatch(NamedTuple):
   log_probs: torch.Tensor
   advantages: torch.Tensor
   returns: torch.Tensor
-
 
 class RecurrentRolloutBatch(NamedTuple):
   """
