@@ -81,10 +81,10 @@ class OnPolicyModel(RLModel):
         self.eval()
         while not self.rollout_buffer.full():
           # Convert to pytorch tensor, let lightning take care of any GPU transfers
-          obs_tensor = torch.as_tensor(self._last_obs).to(
-              device=self.device, dtype=torch.float32)
+          obs_tensor = torch.as_tensor(self._last_obs, dtype=torch.float32).to(
+              device=self.device)
           done_tensor = torch.as_tensor(
-              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
+              self._last_dones, dtype=torch.float32).to(device=obs_tensor.device)
           # Compute actions, values, and log-probs
           action, value, log_prob, entropy = self.act(
               obs_tensor)
@@ -105,20 +105,17 @@ class OnPolicyModel(RLModel):
               log_prob=log_prob)
           self._last_obs = torch.as_tensor(new_obs, dtype=torch.float32).to(
               self.device)
-          self._last_dones = torch.as_tensor(new_dones).to(self.device)
+          self._last_dones = torch.as_tensor(
+              new_dones, dtype=torch.float32).to(self.device)
 
           # Update the number of environment steps taken across ALL agents
           self.total_step_count += self.n_envs
 
         # Use GAE to compute the advantage and return
-        final_obs_tensor = torch.as_tensor(new_obs).to(
-            device=self.device, dtype=torch.float32)
-        final_value_tensor = self.forward(final_obs_tensor)[1]
-        new_done_tensor = torch.as_tensor(new_dones).to(
-            device=obs_tensor.device, dtype=torch.float32)
+        final_value_tensor = self.forward(self._last_obs)[1]
         samples = self.rollout_buffer.finalize(
             final_value_tensor,
-            new_done_tensor
+            self._last_dones
         )
         self.rollout_buffer.reset()
 

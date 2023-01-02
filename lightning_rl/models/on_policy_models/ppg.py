@@ -23,6 +23,7 @@ class PPG(PPO):
                seed: Optional[int] = None,
                n_rollouts_per_epoch: int = 100,
                n_steps_per_rollout: int = 256,
+               shared_arch: bool = False,
                # PPO parameters
                policy_minibatch_size: int = 256,
                gamma: float = 0.99,
@@ -34,11 +35,11 @@ class PPG(PPO):
                entropy_coef: float = 0.0,
                normalize_advantage: bool = True,
                # PPG parameters
-               aux_minibatch_size: int = 4,
-               n_policy_steps: int = 8,
+               aux_minibatch_size: int = 16,
+               n_policy_steps: int = 32,
                n_policy_epochs: int = 1,
                n_value_epochs: int = 1,
-               n_aux_epochs: int = 1,
+               n_aux_epochs: int = 6,
                beta_clone: float = 1.0,
                **kwargs,
                ) -> None:
@@ -56,6 +57,7 @@ class PPG(PPO):
                      entropy_coef=entropy_coef,
                      normalize_advantage=normalize_advantage,
                      **kwargs)
+    self.shared_arch = shared_arch
     # PPG parameters
     self.aux_minibatch_size = aux_minibatch_size
     self.n_policy_steps = n_policy_steps
@@ -64,7 +66,7 @@ class PPG(PPO):
     self.n_aux_epochs = n_aux_epochs
     self.beta_clone = beta_clone
 
-    # Buffers for
+    # Auxiliary buffer
     self.aux_buffer_size = int(self.n_envs * self.n_policy_steps)
     self.aux_obs = torch.zeros(
         (self.n_steps_per_rollout, self.aux_buffer_size) +
@@ -75,10 +77,14 @@ class PPG(PPO):
 
   def training_step(self, batch: Union[RolloutBatch, AuxiliaryBatch], batch_idx: int) -> float:
     if isinstance(batch, RolloutBatch):
+      if self.shared_arch:
+        # If the actor and critic branches share a common feature space, only the policy is updated here. The value function is updated in the auxiliary phase. See section 3.6 of the PPG paper.
+        batch = batch._replace(values=batch.values.detach())
       # In the policy phase, compute the standard PPO loss.
       return PPO.training_step(self, batch, batch_idx)
+
     elif isinstance(batch, AuxiliaryBatch):
-      # Compute the joint loss.
+      # Compute the joint loss from section 2 of the paper
       _, new_values, _, _, new_policy, new_aux_values = self.act(
           batch.observations)
       kl_loss = torch.distributions.kl_divergence(
@@ -86,7 +92,7 @@ class PPG(PPO):
       aux_value_loss = F.mse_loss(new_aux_values, batch.returns)
       joint_loss = aux_value_loss + self.beta_clone * kl_loss
 
-      # Compute the standard value loss like in regular PPO.
+      # Compute the "standard" value loss like in regular PPO.
       real_value_loss = F.mse_loss(new_values, batch.returns)
       loss = joint_loss + real_value_loss
       return loss
@@ -115,10 +121,10 @@ class PPG(PPO):
         self.eval()
         while not self.rollout_buffer.full():
           # Convert to pytorch tensor, let lightning take care of any GPU transfers
-          obs_tensor = torch.as_tensor(self._last_obs).to(
-              device=self.device, dtype=torch.float32)
+          obs_tensor = torch.as_tensor(self._last_obs, dtype=torch.float32).to(
+              device=self.device)
           done_tensor = torch.as_tensor(
-              self._last_dones).to(device=obs_tensor.device, dtype=torch.float32)
+              self._last_dones, dtype=torch.float32).to(device=obs_tensor.device)
           # Compute actions, values, and log-probs
           action, value, log_prob = self.act(obs_tensor)[:3]
           # Perform actions and update the environment
@@ -138,20 +144,17 @@ class PPG(PPO):
               log_prob=log_prob)
           self._last_obs = torch.as_tensor(new_obs, dtype=torch.float32).to(
               self.device)
-          self._last_dones = torch.as_tensor(new_dones).to(self.device)
+          self._last_dones = torch.as_tensor(
+              new_dones, dtype=torch.float32).to(self.device)
 
           # Update the number of environment steps taken across ALL agents
           self.total_step_count += self.n_envs
 
         # Use GAE to compute the advantage and return
-        final_obs_tensor = torch.as_tensor(new_obs).to(
-            device=self.device, dtype=torch.float32)
-        final_value_tensor = self.forward(final_obs_tensor)[1]
-        new_done_tensor = torch.as_tensor(new_dones).to(
-            device=obs_tensor.device, dtype=torch.float32)
+        final_value_tensor = self.forward(self._last_obs)[1]
         samples = self.rollout_buffer.finalize(
             final_value_tensor,
-            new_done_tensor
+            self._last_dones
         )
         self.rollout_buffer.reset()
 
@@ -218,7 +221,7 @@ class PPG(PPO):
           aux_obs_shape = aux_obs.shape
           aux_obs = aux_obs.view((-1, *aux_obs_shape[2:]))
           # Get the returns directly from the policy phase
-          aux_returns = self.aux_returns[:,aux_minibatch_ind].to(self.device)
+          aux_returns = self.aux_returns[:, aux_minibatch_ind].to(self.device)
           aux_returns = aux_returns.view(-1, *self.aux_returns.shape[2:])
           # Compute the "old" policy from the action logits
           old_action_logits = aux_action_logits[:, aux_minibatch_ind].to(
