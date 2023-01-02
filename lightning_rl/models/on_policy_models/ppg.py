@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Iterator, Optional, Union
+from typing import Iterator, NamedTuple, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -8,14 +8,13 @@ import torch
 from lightning_rl.common.buffers import RolloutBatch
 from lightning_rl.models import on_policy_models
 from lightning_rl.models.on_policy_models.ppo import PPO
+import torch.nn.functional as F
 
 
-class TrainingPhase(Enum):
-  """
-  Enum to indicate which phase of training we are in. This is switched in collect_rollouts() and used in training_step().
-  """
-  POLICY = 1
-  AUXILIARY = 2
+class AuxiliaryBatch(NamedTuple):
+  observations: torch.Tensor
+  returns: torch.Tensor
+  old_policy: torch.distributions.Distribution
 
 
 class PPG(PPO):
@@ -35,28 +34,28 @@ class PPG(PPO):
                entropy_coef: float = 0.0,
                normalize_advantage: bool = True,
                # PPG parameters
-               aux_minibatch_size: int = 256,
-               n_policy_steps: int = 1,
+               aux_minibatch_size: int = 4,
+               n_policy_steps: int = 8,
                n_policy_epochs: int = 1,
                n_value_epochs: int = 1,
                n_aux_epochs: int = 1,
                beta_clone: float = 1.0,
                **kwargs,
                ) -> None:
-    super(PPO, self).__init__(env=env,
-                              seed=seed,
-                              batch_size=policy_minibatch_size,
-                              n_rollouts_per_epoch=n_rollouts_per_epoch,
-                              n_steps_per_rollout=n_steps_per_rollout,
-                              gamma=gamma,
-                              gae_lambda=gae_lambda,
-                              policy_clip_range=policy_clip_range,
-                              value_clip_range=value_clip_range,
-                              target_kl=target_kl,
-                              value_coef=value_coef,
-                              entropy_coef=entropy_coef,
-                              normalize_advantage=normalize_advantage,
-                              **kwargs)
+    super().__init__(env=env,
+                     seed=seed,
+                     batch_size=policy_minibatch_size,
+                     n_rollouts_per_epoch=n_rollouts_per_epoch,
+                     n_steps_per_rollout=n_steps_per_rollout,
+                     gamma=gamma,
+                     gae_lambda=gae_lambda,
+                     policy_clip_range=policy_clip_range,
+                     value_clip_range=value_clip_range,
+                     target_kl=target_kl,
+                     value_coef=value_coef,
+                     entropy_coef=entropy_coef,
+                     normalize_advantage=normalize_advantage,
+                     **kwargs)
     # PPG parameters
     self.aux_minibatch_size = aux_minibatch_size
     self.n_policy_steps = n_policy_steps
@@ -74,15 +73,25 @@ class PPG(PPO):
     self.aux_returns = torch.zeros(
         (self.n_steps_per_rollout, self.aux_buffer_size))
 
-  def training_step(self, batch: RolloutBatch, batch_idx: int) -> float:
-    if self.phase == TrainingPhase.POLICY:
-      # Compute PPO loss
-      return super(PPO, self).training_step(batch, batch_idx)
-    elif self.phase == TrainingPhase.AUXILIARY:
-      # TODO: Compute auxiliary losses
-      pass
+  def training_step(self, batch: Union[RolloutBatch, AuxiliaryBatch], batch_idx: int) -> float:
+    if isinstance(batch, RolloutBatch):
+      # In the policy phase, compute the standard PPO loss.
+      return PPO.training_step(self, batch, batch_idx)
+    elif isinstance(batch, AuxiliaryBatch):
+      # Compute the joint loss.
+      # TODO: Modify the network architecture so that this works.
+      new_policy, new_values, new_aux_values, entropy = self.act(
+          batch.observations)
+      kl_loss = torch.distributions.kl_divergence(batch.old_policy, new_policy)
+      aux_value_loss = F.mse_loss(new_aux_values, batch.returns)
+      joint_loss = aux_value_loss + self.beta_clone * kl_loss
+      
+      # Compute the standard value loss like in regular PPO. 
+      real_value_loss = F.mse_loss(new_values, batch.returns)
+      loss = joint_loss + real_value_loss
+      return loss
 
-  def collect_rollouts(self) -> Iterator[RolloutBatch]:
+  def collect_rollouts(self) -> Union[Iterator[RolloutBatch], Iterator[AuxiliaryBatch]]:
     """
     Perform rollouts in the environment and return the results
 
@@ -151,7 +160,6 @@ class PPG(PPO):
         self.train()
         n_samples = self.n_steps_per_rollout * self.n_envs
         indices = np.arange(n_samples)
-        self.phase = TrainingPhase.POLICY
         for epoch in range(self.n_policy_epochs):
           # Check if the training_step has requested to stop training on the current batch.
           if not self.continue_training:
@@ -172,30 +180,57 @@ class PPG(PPO):
         # Save rollouts for PPG
         storage_slice = slice(self.n_envs * i_policy_step,
                               self.n_envs * (i_policy_step + 1))
-        # TODO: Make these a deque?
-        self.aux_obs[:, storage_slice] = samples.observations.cpu(
-        ).clone()
-        self.aux_returns[:, storage_slice] = samples.returns.cpu().clone()
+        # TODO: These are the right shape, but it's possible they're not in the order I'm expecting.
+        obs = samples.observations.view_as(self.aux_obs[:, storage_slice])
+        returns = samples.returns.view_as(self.aux_returns[:, storage_slice])
+        self.aux_obs[:, storage_slice] = obs.cpu().clone()
+        self.aux_returns[:, storage_slice] = returns.cpu().clone()
 
       # Auxiliary phase
       aux_inds = np.arange(self.aux_buffer_size)
 
-      # TODO: Compute and store the current policy for all states in the aux buffer
+      # Compute and store the current policy for all states in the aux buffer
       action_shape = self.action_space.shape or self.action_space.n
-      aux_pi = torch.zeros(
-          (self.n_steps_per_rollout, self.aux_buffer_size) + action_shape)
-      for i, start in enumerate(range(0, self.aux_buffer_size, self.aux_minibatch_size)):
+      # TODO: Need an if statement if the action space is not discrete
+      aux_action_logits = torch.zeros(
+          (self.n_steps_per_rollout, self.aux_buffer_size, action_shape))
+      for start in range(0, self.aux_buffer_size, self.aux_minibatch_size):
         end = start + self.aux_minibatch_size
         aux_minibatch_inds = aux_inds[start:end]
-        minibatch_aux_obs = self.aux_obs[:, aux_minibatch_inds].to(
+        # Flatten the first two dimensions of the observation tensor so that it can be passed into the action network
+        aux_obs = self.aux_obs[:, aux_minibatch_inds].to(
             torch.float32).to(self.device)
-        minibatch_obs_shape = minibatch_aux_obs.shape
-        # TODO: Might have to flatten the obs
-        # TODO: Compute and store the logits for the current action
+        aux_obs_shape = aux_obs.shape
+        aux_obs = aux_obs.view(
+            (-1, *aux_obs_shape[2:]))
+        # Compute the action logits and store them in (step, minibatch, *action dim form)
+        with torch.no_grad():
+          action_logits = self.forward(aux_obs)[0].cpu().clone()
+        aux_action_logits[:, aux_minibatch_inds] = action_logits.view(
+            *aux_obs_shape[:2], -1)
+        del aux_obs
 
-      self.phase = TrainingPhase.AUXILIARY
-      for i_aux_epoch in range(self.n_aux_epochs):
-        np.random.suffle(aux_inds)
+      for epoch in range(self.n_aux_epochs):
+        np.random.shuffle(aux_inds)
+        for start in range(0, self.aux_buffer_size, self.aux_minibatch_size):
+          end = start + self.aux_minibatch_size
+          aux_minibatch_ind = aux_inds[start:end]
+          # Get the observations and flatten them so that they can be passed into the actor network
+          aux_obs = self.aux_obs[:, aux_minibatch_ind].to(self.device)
+          aux_obs_shape = aux_obs.shape
+          aux_obs = aux_obs.view((-1, *aux_obs_shape[2:]))
+          # Get the returns directly from the policy phase
+          aux_returns = self.aux_returns[:, aux_minibatch_ind].to(self.device)
+          aux_returns = aux_returns.view(-1, *aux_returns.shape[2:])
+          # Compute the "old" policy from the action logits
+          old_action_logits = aux_action_logits[:, aux_minibatch_ind].to(
+              self.device)
+          old_policy = self.action_dist(old_action_logits)
+          yield AuxiliaryBatch(
+              observations=aux_obs,
+              returns=aux_returns,
+              old_policy=old_policy
+          )
 
 
 if __name__ == '__main__':

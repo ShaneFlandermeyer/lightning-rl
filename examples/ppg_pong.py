@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import pytorch_lightning as pl
 from torch import nn
-from lightning_rl.models.on_policy_models import PPO
+from lightning_rl.models.on_policy_models.ppg import PPG
 from torch import distributions
 from torch.distributions.categorical import Categorical
 from lightning_rl.common.layer_init import ortho_init
@@ -23,13 +23,14 @@ def make_env(env_id, seed, idx):
   return thunk
 
 
-class AtariPPO(PPO):
+class AtariPPG(PPG):
   def __init__(self,
                env: gym.Env,
                **kwargs):
     # **kwargs will pass our arguments on to PPO
     super().__init__(env=env,
                      **kwargs)
+    # TODO: Modify the network architecture to be like ppg_procgen in cleanrl.
     self.feature_net = nn.Sequential(
         ortho_init(nn.Conv2d(
             self.observation_space.shape[0], 32, kernel_size=8, stride=4)),
@@ -59,6 +60,23 @@ class AtariPPO(PPO):
     action = action_dist.sample()
     return action, value, action_dist.log_prob(action), action_dist.entropy()
 
+  def action_dist(self, logits: torch.Tensor) -> torch.distributions.Distribution:
+    """
+    Return the action distribution from the output logits. This is needed to compute the KL divergence term in the joint loss on page 3 of the PPG paper (Cobbe2020).
+
+    Parameters
+    ----------
+    logits : torch.Tensor
+        Logits from the output of the actor network
+
+    Returns
+    -------
+    torch.distributions.Distribution
+        Action distribution
+    """
+    action_dist = Categorical(logits=logits)
+    return action_dist
+
   def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor):
     action_logits, value = self.forward(obs)
     action_dist = Categorical(logits=action_logits)
@@ -76,29 +94,27 @@ if __name__ == '__main__':
 
   # Vectorize the environment
   n_env = 8
-  env = gym.vector.AsyncVectorEnv(
-      [make_env(env_id, seed, i) for i in range(n_env)])
-  env = gym.wrappers.RecordEpisodeStatistics(env=env, deque_size=20)
+  env = gym.vector.AsyncVectorEnv([make_env(env_id, seed, i) for i in range(n_env)])
+  env=gym.wrappers.RecordEpisodeStatistics(env = env, deque_size = 20)
 
-  ppo = AtariPPO(env=env,
-                 n_rollouts_per_epoch=10,
-                 n_steps_per_rollout=128,
-                 n_gradient_steps=10,
-                 batch_size=256,
-                 gamma=0.99,
-                 gae_lambda=0.95,
-                 value_coef=1,
-                 entropy_coef=0.01,
-                 seed=seed,
-                 normalize_advantage=True,
-                 policy_clip_range=0.1,
+  ppg=AtariPPG(env = env,
+                 n_rollouts_per_epoch= 10,
+                 n_steps_per_rollout= 256,
+                 n_gradient_steps= 10,
+                 gamma= 0.99,
+                 gae_lambda= 0.95,
+                 value_coef= 1,
+                 entropy_coef= 0.01,
+                 seed= seed,
+                 normalize_advantage= True,
+                 policy_clip_range= 0.1,
                  )
 
-  trainer = pl.Trainer(
-      max_time="00:03:00:00",
-      gradient_clip_val=0.5,
-      accelerator='gpu',
-      devices=1,
+  trainer=pl.Trainer(
+      max_time= "00:03:00:00",
+      gradient_clip_val= 0.5,
+      accelerator= 'gpu',
+      devices= 1,
   )
 
-  trainer.fit(ppo)
+  trainer.fit(ppg)
