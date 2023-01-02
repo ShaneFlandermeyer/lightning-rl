@@ -2,7 +2,7 @@ from typing import Optional, Union
 import gym
 import torch
 from lightning_rl.models.off_policy_models import OffPolicyModel
-from gym import spaces
+from gymnasium import spaces
 import torch.nn.functional as F
 
 from lightning_rl.common.buffers import OffPolicyExperienceBatch

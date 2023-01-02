@@ -57,7 +57,3 @@ if __name__ == '__main__':
                        devices=1,
                        strategy='ddp')
   trainer.fit(model)
-
-  eval_env = gym.make('CartPole-v1')
-  rewards = model.evaluate(eval_env, n_eval_episodes=20)
-  print(np.mean(rewards))

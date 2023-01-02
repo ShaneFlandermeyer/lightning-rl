@@ -1,3 +1,4 @@
+import time
 from typing import Optional, Tuple, Union
 
 import gym
@@ -79,9 +80,9 @@ class A2C(OnPolicyModel):
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    dist, values = self.forward(batch.observations)
-    log_probs = dist.log_prob(batch.actions.flatten())
-    entropy = dist.entropy()
+    actions, values = self.forward(batch.observations)
+    log_probs, entropy = self.evaluate_actions(
+        batch.observations, batch.actions)
     values = values.flatten()
 
     advantages = batch.advantages
@@ -110,6 +111,7 @@ class A2C(OnPolicyModel):
         'train/value_loss': value_loss,
         'train/entropy_loss': entropy_loss,
         'train/explained_variance': explained_var,
+        'train/FPS': self.total_step_count / (time.time() - self.start_time)
         },
         prog_bar=False, logger=True
     )

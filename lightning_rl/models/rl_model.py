@@ -1,7 +1,8 @@
 import inspect
+import time
 import warnings
 import pytorch_lightning as pl
-import gym
+import gymnasium as gym
 from typing import List, Union, Optional, Tuple, Dict, Any
 import numpy as np
 import torch
@@ -33,7 +34,8 @@ class RLModel(pl.LightningModule):
       self,
       env: Union[str, gym.Env, gym.vector.VectorEnv],
       support_multi_env: bool = False,
-      seed: Optional[int] = None
+      seed: Optional[int] = None,
+      **kwargs
   ) -> None:
     super().__init__()
 
@@ -43,7 +45,7 @@ class RLModel(pl.LightningModule):
     # The data collection loops assume the environment is vectorized. If this is not the case, wrap the environment in a SyncVectorEnv with 1 environment.
     is_vector_env = getattr(env, "is_vector_env", False)
     if not is_vector_env:
-      self.env = gym.vector.SyncVectorEnv([lambda: self.env])
+      self.env = gym.vector.SyncVectorEnv([lambda: env])
     else:
       self.env = env
 
@@ -54,75 +56,22 @@ class RLModel(pl.LightningModule):
     if seed:
       self.seed = seed
       self.set_random_seed(self.seed)
+    else:
+      self.seed = None
     if not support_multi_env and self.n_envs > 1:
       raise ValueError(
           "Error: the model does not support multiple envs; it requires " "a single vectorized environment."
       )
 
+    self.start_time = time.time()
     self.reset()
-
-  def act(
-      self,
-      state: np.ndarray,
-      deterministic: bool = False
-  ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Perform an action based on the current state of the environment
-
-    Parameters
-    ----------
-    state : np.ndarray
-        Input state
-    deterministic : bool, optional
-        If true, samples the action deterministically, by default False
-
-    Returns
-    -------
-    Tuple[np.ndarray, np.ndarray]
-        The action to perform
-    """
-    with torch.no_grad():
-      state = torch.tensor(state).to(self.device)
-      action = self.predict(state, deterministic=deterministic)
-
-    if isinstance(self.action_space, gym.spaces.Box):
-      action = np.clip(action, self.action_space.low, self.action_space.high)
-    elif isinstance(self.action_space, (gym.spaces.Discrete,
-                                        gym.spaces.MultiDiscrete,
-                                        gym.spaces.MultiBinary)):
-      action = action.astype(np.int32)
-
-    return action
-  
-  def predict(self,
-              obs: Union[Tuple, Dict[str, Any], np.ndarray, int], deterministic: bool = False) -> np.ndarray:
-    """
-    Override this function with the predict function of your own mode
-
-    Parameters
-    ----------
-    obs : Union[Tuple, Dict[str, Any], np.ndarray, int]
-        The input observations
-    deterministic : bool, optional
-        If true, samples the action deterministically, by default False
-
-    Returns
-    -------
-    np.ndarray
-        The chosen action
-
-    Raises
-    ------
-    NotImplementedError
-    """
-    raise NotImplementedError
-
+    
   def reset(self) -> None:
     """
     Reset the environment
     """
     self._last_obs = self.env.reset(seed=self.seed)[0]
-    self._last_dones = np.zeros((self.env.num_envs,), dtype=np.bool)
+    self._last_dones = np.zeros((self.env.num_envs,), dtype=np.uint8)
 
   def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
     """
@@ -171,3 +120,14 @@ class RLModel(pl.LightningModule):
     """
     o = network(torch.zeros(1, *self.observation_space.shape))
     return o.shape
+  
+  def on_train_epoch_end(self) -> None:
+    # Log episode statistics at the end of each epoch if the environment has the wrapper
+    if hasattr(self.env, "return_queue") and hasattr(self.env, "length_queue"):
+      if self.env.return_queue and self.env.length_queue:
+        self.log_dict({
+            'train/mean_episode_reward': np.mean(self.env.return_queue),
+            'train/mean_episode_length': np.mean(self.env.length_queue),
+            'train/total_step_count': float(self.total_step_count),
+        },
+            prog_bar=True, logger=True)

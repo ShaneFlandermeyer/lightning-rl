@@ -5,10 +5,11 @@ import numpy as np
 import torch
 import pytorch_lightning as pl
 from torch import nn
-from lightning_rl.models.on_policy_models import PPO
+from lightning_rl.models.on_policy_models.ppg import PPG
 from torch import distributions
 from torch.distributions.categorical import Categorical
-from lightning_rl.common.layer_init import ortho_init
+from lightning_rl.common.layer_init import ortho_init, norm_init
+import torch.nn.functional as F
 
 
 def make_env(env_id, seed, idx):
@@ -22,8 +23,7 @@ def make_env(env_id, seed, idx):
     return env
   return thunk
 
-
-class AtariPPO(PPO):
+class AtariPPG(PPG):
   def __init__(self,
                env: gym.Env,
                **kwargs):
@@ -43,6 +43,7 @@ class AtariPPO(PPO):
         nn.ReLU(),
     )
     self.actor = ortho_init(nn.Linear(512, self.action_space.n), std=0.01)
+    self.aux_critic = ortho_init(nn.Linear(512, 1), std=1)
     self.critic = ortho_init(nn.Linear(512, 1), std=1)
 
     self.save_hyperparameters()
@@ -50,22 +51,40 @@ class AtariPPO(PPO):
   def forward(self, x: torch.Tensor):
     features = self.feature_net(x / 255.0)
     action_logits = self.actor(features)
-    values = self.critic(features).flatten()
-    return action_logits, values
+    aux_value = self.aux_critic(features).flatten()
+    value = self.critic(features).flatten()
+    return action_logits, aux_value, value
 
   def act(self, x: torch.Tensor):
-    action_logits, value = self.forward(x)
+    action_logits, aux_value, value = self.forward(x)
     action_dist = Categorical(logits=action_logits)
     action = action_dist.sample()
-    return action, value, action_dist.log_prob(action), action_dist.entropy()
+    return action, value, action_dist.log_prob(action), action_dist.entropy(), action_dist, aux_value
+
+  def logits_to_action_dist(self, logits: torch.Tensor) -> torch.distributions.Distribution:
+    """
+    Return the action distribution from the output logits. This is needed to compute the KL divergence term in the joint loss on page 3 of the PPG paper (Cobbe2020).
+
+    Parameters
+    ----------
+    logits : torch.Tensor
+        Logits from the output of the actor network
+
+    Returns
+    -------
+    torch.distributions.Distribution
+        Action distribution
+    """
+    action_dist = Categorical(logits=logits)
+    return action_dist
 
   def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor):
-    action_logits, value = self.forward(obs)
+    action_logits, _, value = self.forward(obs)
     action_dist = Categorical(logits=action_logits)
     return action_dist.log_prob(actions), action_dist.entropy(), value
 
   def configure_optimizers(self):
-    optimizer = torch.optim.Adam(self.parameters(), lr=2.5e-4, eps=1e-5)
+    optimizer = torch.optim.Adam(self.parameters(), lr=5e-4, eps=1e-5)
     return optimizer
 
 
@@ -75,16 +94,15 @@ if __name__ == '__main__':
   seed = np.random.randint(0, 2**32 - 1)
 
   # Vectorize the environment
-  n_env = 8
+  n_env = 16
   env = gym.vector.AsyncVectorEnv(
       [make_env(env_id, seed, i) for i in range(n_env)])
   env = gym.wrappers.RecordEpisodeStatistics(env=env, deque_size=20)
 
-  ppo = AtariPPO(env=env,
-                 n_rollouts_per_epoch=10,
-                 n_steps_per_rollout=128,
-                 n_gradient_steps=10,
-                 batch_size=256,
+  ppg = AtariPPG(env=env,
+                 n_rollouts_per_epoch=1,
+                 n_steps_per_rollout=256,
+                 shared_arch=True,
                  gamma=0.99,
                  gae_lambda=0.95,
                  value_coef=1,
@@ -92,6 +110,14 @@ if __name__ == '__main__':
                  seed=seed,
                  normalize_advantage=True,
                  policy_clip_range=0.1,
+                 policy_minibatch_size=256,
+                 # PPG parameters
+                 aux_minibatch_size=16,
+                 n_policy_steps=32,
+                 n_policy_epochs=6,
+                 n_value_epochs=1,
+                 n_aux_epochs=6,
+                 beta_clone=1.0,
                  )
 
   trainer = pl.Trainer(
@@ -99,6 +125,7 @@ if __name__ == '__main__':
       gradient_clip_val=0.5,
       accelerator='gpu',
       devices=1,
+      # strategy='ddp',
   )
 
-  trainer.fit(ppo)
+  trainer.fit(ppg)

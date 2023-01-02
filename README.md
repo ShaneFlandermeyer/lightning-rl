@@ -1,8 +1,10 @@
 # Lightning RL
 
-Lightning RL implements several reinforcement learning algorithms using [Pytorch Lightning](https://www.pytorchlightning.ai/) as a backend. LightningRL abstracts away the data collection loop, making algorithm implementations concise and easy to maintain (for most algorithms, only the ```training_step()``` method for computing loss must be implemented). Pytorch Lightning makes it easy to distribute training to multiple CPUs, GPUs, and/or compute nodes so that research experiments can be scaled up.
+Lightning RL implements several reinforcement learning algorithms using [Pytorch Lightning](https://www.pytorchlightning.ai/) as a backend. Many RL libraries have deep class structures that makes it difficult to modify or implement algorithms. The goal of this repository is to simplify the development process by keeping implementation details as transparent as possible. This adds a bit more boilerplate code before an algorithm can be used, but makes the implementations easier to understand.
 
-I got the idea for this repository from [Lightning Baselines3](https://github.com/HenryJia/lightning-baselines3), and much of the code for "standard" algorithms like DQN and A2C is taken directly from there. However, Lightning RL will diverge into its own thing as I build it up for my personal research.
+In most cases, new classes of algorithms can be added by defining a loss functions in the ```training_step()``` method and defining the network architecture in a subclass. For example, PPO uses the "standard" on-policy data collection loop and a custom loss function. However, the data collection loop can also be modified by overriding the ```collect_rollouts()``` function (e.g., PPG requires separate policy/auxiliary phases during data collection).
+
+Pytorch Lightning can also distribute training to multiple CPUs, GPUs, and/or compute nodes so that research experiments can be scaled up for tougher problems.
 
 ## Dependencies
 
@@ -18,7 +20,7 @@ pip install -e .
 
 ## Algorithms
 
-- [x] DQN
-- [x] A2C
-- [x] PPO
-- [ ] ICM
+- [x] Deep Q-Networks (DQN)
+- [x] Advantage Actor-Critic (A2C)
+- [x] Proximal Policy Optimization (PPO)
+- [x] Phasic Policy Gradient (PPG)
