@@ -151,7 +151,7 @@ class PPG(PPO):
           self.total_step_count += self.n_envs
 
         # Use GAE to compute the advantage and return
-        final_value_tensor = self.forward(self._last_obs)[1]
+        final_value_tensor = self.act(self._last_obs)[1]
         samples = self.rollout_buffer.finalize(
             final_value_tensor,
             self._last_dones
