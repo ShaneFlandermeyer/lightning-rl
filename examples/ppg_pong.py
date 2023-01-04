@@ -113,7 +113,7 @@ if __name__ == '__main__':
                  policy_minibatch_size=256,
                  # PPG parameters
                  aux_minibatch_size=16,
-                 n_policy_steps=32,
+                 n_policy_steps=16,
                  n_policy_epochs=6,
                  n_value_epochs=1,
                  n_aux_epochs=6,
