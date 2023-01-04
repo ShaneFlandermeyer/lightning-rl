@@ -205,24 +205,23 @@ class PPG(PPO):
         # Compute the action logits and store them in (step, minibatch, *action dim form)
         with torch.no_grad():
           aux_action = self.forward(aux_obs)[0]
-          # If the action "logits" are an iterable, concatenate them before storing them. This will occur if the action head computes multiple parameters, e.g., the mean and std. dev. of a Gaussian in a continuous action space.
-          # TODO: Check for any iterable, not just tuples
-          if isinstance(aux_action, Iterable):
-            # Concatenate each element of the tuple into a single tensor
-            for i in range(len(aux_action)):
-              if start == 0 and i == 0:
-                # Initialize the action logits tensor
-                aux_action_logits = torch.zeros(self.n_steps_per_rollout, self.aux_buffer_size, len(
-                    aux_action), *aux_action[i].shape[1:])
-              # Stack the action logits along the action dimension
-              action_logits = aux_action[i].view(
-                  *aux_obs_shape[:2], -1).cpu().clone()
-              aux_action_logits[:, aux_minibatch_inds, i] = action_logits
-          else:
-            # Otherwise (for discrete action spaces), the raw logits will do
-            action_logits = aux_action.view(
+        # If the action "logits" are an iterable, concatenate them before storing them. This will occur if the action head computes multiple parameters, e.g., the mean and std. dev. of a Gaussian in a continuous action space.
+        if isinstance(aux_action, tuple):
+          # Concatenate each element of the tuple into a single tensor
+          for i in range(len(aux_action)):
+            if start == 0 and i == 0:
+              # Initialize the action logits tensor
+              aux_action_logits = torch.zeros(self.n_steps_per_rollout, self.aux_buffer_size, len(
+                  aux_action), *aux_action[i].shape[1:])
+            # Stack the action logits along the action dimension
+            action_logits = aux_action[i].view(
                 *aux_obs_shape[:2], -1).cpu().clone()
-            aux_action_logits[:, aux_minibatch_inds] = action_logits
+            aux_action_logits[:, aux_minibatch_inds, i] = action_logits
+        else:
+          # Otherwise (for discrete action spaces), the raw logits will do
+          action_logits = aux_action.view(
+              *aux_obs_shape[:2], -1).cpu().clone()
+          aux_action_logits[:, aux_minibatch_inds] = action_logits
         del aux_obs
 
       # AUXILIARY PHASE
