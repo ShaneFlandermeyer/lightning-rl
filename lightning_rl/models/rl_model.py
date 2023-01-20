@@ -70,7 +70,10 @@ class RLModel(pl.LightningModule):
     """
     Reset the environment
     """
-    self._last_obs = self.env.reset(seed=self.seed)[0]
+    if self.seed is not None:
+      self._last_obs = self.env.reset()[0]
+    else:
+      self._last_obs = self.env.reset(seed=self.seed)[0]
     self._last_dones = np.zeros((self.env.num_envs,), dtype=np.uint8)
 
   def save_hyperparameters(self, frame=None, exclude=['env', 'eval_env']):
