@@ -350,7 +350,8 @@ class RecurrentRolloutBuffer():
 
   def finalize(self,
                last_values: torch.Tensor,
-               last_dones: torch.Tensor) -> RolloutBatch:
+               last_dones: torch.Tensor,
+               normalize_returns: bool = False) -> RolloutBatch:
     """
     Finalize and compute the returns (sum of discounted rewards) and GAE advantage.
     Adapted from Stable-Baselines PPO2.
