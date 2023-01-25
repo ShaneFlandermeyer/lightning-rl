@@ -205,7 +205,8 @@ class RolloutBuffer():
 
   def finalize(self,
                last_values: torch.Tensor,
-               last_dones: torch.Tensor) -> RolloutBatch:
+               last_dones: torch.Tensor,
+               normalize_returns: bool = False) -> RolloutBatch:
     """
     Finalize and compute the returns (sum of discounted rewards) and GAE advantage.
     Adapted from Stable-Baselines PPO2.
@@ -248,6 +249,8 @@ class RolloutBuffer():
                                              self.n_rollout_steps,
                                              self.gamma,
                                              self.gae_lambda)
+    if normalize_returns:
+      returns = (returns - returns.mean()) / (returns.std() + 1e-8)
     # Reshape experience tensors
     observations = observations.view(
         (-1, *observations.shape[2:]))

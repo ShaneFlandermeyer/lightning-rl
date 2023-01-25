@@ -96,7 +96,7 @@ class PPO(OnPolicyModel):
                                                -self.value_clip_range,
                                                self.value_clip_range)
     # Value loss using the TD(gae_lambda) target
-    value_loss = 0.5 * ((values_pred - batch.returns)**2).mean()
+    value_loss = F.mse_loss(values_pred, batch.returns)
 
     # Use entropy to discourage collapse into a determinsitic policy
     if entropy is None:
