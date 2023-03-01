@@ -1,16 +1,15 @@
+import time
 import torch
-from lightning_rl.common.buffers import RecurrentRolloutBatch
+from lightning_rl.common.buffers import RolloutBatch
 from lightning_rl.common.utils import explained_variance
-from lightning_rl.models.on_policy_models import OnPolicyModel
+from lightning_rl.models.on_policy import OnPolicyModel
 import gym
 from typing import Tuple, Union, Optional
 from torch import distributions
 import torch.nn.functional as F
 
-from lightning_rl.models.on_policy_models.recurrent_on_policy_model import RecurrentOnPolicyModel
 
-
-class RecurrentPPO(RecurrentOnPolicyModel):
+class PPO(OnPolicyModel):
   """
   Proximal policy optimization (PPO) algorithm
 
@@ -25,7 +24,7 @@ class RecurrentPPO(RecurrentOnPolicyModel):
                n_steps_per_rollout: int = 10,
                n_rollouts_per_epoch: int = 100,
                n_gradient_steps: int = 10,
-               n_minibatch: int = 4,
+               batch_size: int = 64,
                gamma: float = 0.99,
                gae_lambda: float = 1.0,
                policy_clip_range: float = 0.2,
@@ -42,7 +41,7 @@ class RecurrentPPO(RecurrentOnPolicyModel):
         n_steps_per_rollout=n_steps_per_rollout,
         n_rollouts_per_epoch=n_rollouts_per_epoch,
         n_gradient_steps=n_gradient_steps,
-        n_minibatch=4,
+        batch_size=batch_size,
         gamma=gamma,
         gae_lambda=gae_lambda,
         seed=seed,
@@ -55,7 +54,7 @@ class RecurrentPPO(RecurrentOnPolicyModel):
     self.entropy_coef = entropy_coef
     self.normalize_advantage = normalize_advantage
 
-  def training_step(self, batch: RecurrentRolloutBatch, batch_idx: int) -> float:
+  def training_step(self, batch: RolloutBatch, batch_idx: int) -> float:
     """
     Perform the PPO update step
 
@@ -71,9 +70,8 @@ class RecurrentPPO(RecurrentOnPolicyModel):
     float
         Total loss = policy loss + value loss + entropy_loss
     """
-    # Have to switch so the batch dimension is in the middle
     log_probs, entropy, values = self.evaluate_actions(
-        batch.observations, batch.actions, batch.hidden_states, batch.dones)
+        batch.observations, batch.actions)
 
     advantages = batch.advantages
     if self.normalize_advantage:
@@ -98,7 +96,7 @@ class RecurrentPPO(RecurrentOnPolicyModel):
                                                -self.value_clip_range,
                                                self.value_clip_range)
     # Value loss using the TD(gae_lambda) target
-    value_loss = F.mse_loss(batch.returns, values_pred)
+    value_loss = 0.5*F.mse_loss(values_pred, batch.returns)
 
     # Use entropy to discourage collapse into a determinsitic policy
     if entropy is None:
@@ -126,6 +124,7 @@ class RecurrentPPO(RecurrentOnPolicyModel):
         'train/clip_fraction': clip_fraction,
         'train/approx_kl': approx_kl,
         'train/explained_variance': explained_var,
+        'train/FPS': self.total_step_count / (time.time() - self.start_time)
     },
         prog_bar=False, logger=True
     )

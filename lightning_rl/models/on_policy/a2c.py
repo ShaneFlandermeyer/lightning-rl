@@ -5,7 +5,7 @@ import gym
 import torch
 import torch.nn.functional as F
 from lightning_rl.common.buffers import RolloutBatch
-from lightning_rl.models.on_policy_models import OnPolicyModel
+from lightning_rl.models.on_policy import OnPolicyModel
 from torch import distributions
 
 from lightning_rl.common.utils import explained_variance
