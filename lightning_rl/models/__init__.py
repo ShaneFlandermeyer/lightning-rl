@@ -1,4 +1,4 @@
-from .rl_model import RLModel
-from .off_policy_models import OffPolicyModel, DQN
-from .on_policy_models import OnPolicyModel, A2C
+from .rl_model import *
+from .off_policy import *
+from .on_policy import *
 from .icm import ICM

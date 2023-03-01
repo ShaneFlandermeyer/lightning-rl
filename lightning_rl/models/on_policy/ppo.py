@@ -1,5 +1,6 @@
 import time
 import torch
+from torch import Tensor
 from lightning_rl.common.buffers import RolloutBatch
 from lightning_rl.common.utils import explained_variance
 from lightning_rl.models.on_policy import OnPolicyModel
@@ -8,6 +9,64 @@ from typing import Tuple, Union, Optional
 from torch import distributions
 import torch.nn.functional as F
 
+
+def ppo_loss(
+        # Batch data
+        batch_advantages: Tensor,
+        batch_log_probs: Tensor,
+        batch_values: Tensor,
+        batch_returns: Tensor,
+        # Network outputs
+        new_log_probs: Tensor,
+        new_values: Tensor,
+        entropy: Tensor,
+        # Configuration parameters
+        clip_range: float = 0.2,
+        value_coef: float = 1,
+        entropy_coef: float = 0.0,
+        normalize_advantage: bool = True,
+):
+  # Compute the policy loss
+  if normalize_advantage:
+    batch_advantages = (batch_advantages - batch_advantages.mean()) / \
+        (batch_advantages.std() + 1e-8)
+
+  ratio = torch.exp(new_log_probs - batch_log_probs)
+  policy_loss_1 = batch_advantages * ratio
+  policy_loss_2 = batch_advantages * torch.clamp(ratio,
+                                                 1 - clip_range,
+                                                 1 + clip_range)
+  policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+
+  # Compute the value loss
+  value_loss = F.mse_loss(new_values, batch_returns)
+
+  # Entropy regularizer
+  if entropy is None:
+    entropy_loss = -torch.mean(-new_log_probs)
+  else:
+    entropy_loss = -torch.mean(entropy)
+
+  # Total loss is the sum of all losses
+  loss = policy_loss + value_coef * value_loss + entropy_coef * entropy_loss
+
+  # Compute metrics
+  with torch.no_grad():
+    clip_fraction = torch.mean(
+        (torch.abs(ratio - 1) > clip_range).float())
+    approx_kl = torch.mean(batch_log_probs - new_log_probs)
+    explained_var = explained_variance(batch_values, batch_returns)
+    
+  # Compute info dictionary
+  info = {}
+  info['loss/value_loss'] = value_loss.item()
+  info['loss/policy_loss'] = policy_loss.item()
+  info['loss/entropy_loss'] = entropy_loss.item()
+  info['metrics/approx_kl'] = approx_kl.item()
+  info['metrics/explained_variance'] = explained_var.item()
+  info['metrics/clip_fraction'] = clip_fraction.item()
+
+  return loss, info
 
 class PPO(OnPolicyModel):
   """

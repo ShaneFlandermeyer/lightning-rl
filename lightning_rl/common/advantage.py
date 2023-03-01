@@ -1,15 +1,16 @@
 from typing import Tuple
 import torch
 
+
 @torch.no_grad()
 def estimate_advantage(rewards: torch.Tensor,
-        values: torch.Tensor,
-        dones: torch.Tensor,
-        last_value: torch.Tensor,
-        last_done: torch.Tensor,
-        n_steps: int,
-        gamma: float,
-        gae_lambda: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+                       values: torch.Tensor,
+                       dones: torch.Tensor,
+                       last_value: torch.Tensor,
+                       last_done: torch.Tensor,
+                       n_steps: int,
+                       gamma: float,
+                       gae_lambda: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
   """
   Estimate the advantage from an n-step rollout using generalized advantage estimation (GAE)
 
@@ -65,5 +66,5 @@ if __name__ == '__main__':
   last_done = torch.rand(1)
   last_value = torch.rand(1)
   a, r = estimate_advantage(rewards, dones, values, last_done,
-             last_value, n_steps, gamma, lam)
+                            last_value, n_steps, gamma, lam)
   print(a)
