@@ -4,6 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
+from typing import Optional, Tuple
 
 # import gymnasium as gym
 import gym
@@ -82,7 +83,7 @@ def make_env(env_id, seed, idx, capture_video, run_name):
         env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
     env = gym.wrappers.AtariPreprocessing(
         env, screen_size=84, grayscale_obs=True, grayscale_newaxis=False)
-    env = gym.wrappers.FrameStack(env, 4)
+    env = gym.wrappers.FrameStack(env, 1)
     env.seed(seed)
     env.action_space.seed(seed)
     env.observation_space.seed(seed)
@@ -101,7 +102,7 @@ class Agent(nn.Module):
   def __init__(self, envs):
     super().__init__()
     self.network = nn.Sequential(
-        layer_init(nn.Conv2d(4, 32, 8, stride=4)),
+        layer_init(nn.Conv2d(1, 32, 8, stride=4)),
         nn.ReLU(),
         layer_init(nn.Conv2d(32, 64, 4, stride=2)),
         nn.ReLU(),
@@ -111,20 +112,58 @@ class Agent(nn.Module):
         layer_init(nn.Linear(64 * 7 * 7, 512)),
         nn.ReLU(),
     )
+    self.lstm = nn.LSTM(512, 128)
+    for name, param in self.lstm.named_parameters():
+      if "bias" in name:
+        nn.init.constant_(param, 0)
+      elif "weight" in name:
+        nn.init.orthogonal_(param, 1.0)
     self.actor = layer_init(
-        nn.Linear(512, envs.single_action_space.n), std=0.01)
-    self.critic = layer_init(nn.Linear(512, 1), std=1)
+        nn.Linear(128, envs.single_action_space.n), std=0.01)
+    self.critic = layer_init(nn.Linear(128, 1), std=1)
 
-  def get_value(self, x):
-    return self.critic(self.network(x / 255.0))
-
-  def get_action_and_value(self, x, action=None):
+  def get_states(self,
+                 x: torch.Tensor,
+                 lstm_state: Tuple[torch.Tensor],
+                 done: torch.Tensor
+                 ) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
     hidden = self.network(x / 255.0)
+
+    # LSTM logic
+    batch_size = lstm_state[0].shape[1]
+    hidden = hidden.reshape((-1, batch_size, self.lstm.input_size))
+    done = done.reshape((-1, batch_size))
+    new_hidden = []
+    for h, d in zip(hidden, done):
+      h, lstm_state = self.lstm(
+          h.unsqueeze(0),
+          (
+              (1.0 - d).view(1, -1, 1) * lstm_state[0],
+              (1.0 - d).view(1, -1, 1) * lstm_state[1],
+          ),
+      )
+      new_hidden += [h]
+    new_hidden = torch.flatten(torch.cat(new_hidden), 0, 1)
+    return new_hidden, lstm_state
+
+  def get_value(self,
+                x: torch.Tensor,
+                lstm_state: Tuple[torch.Tensor],
+                done: torch.Tensor) -> torch.Tensor:
+    hidden, _ = self.get_states(x, lstm_state, done)
+    return self.critic(hidden)
+
+  def get_action_and_value(self,
+                           x: torch.Tensor,
+                           lstm_state: Tuple[torch.Tensor],
+                           done: torch.Tensor,
+                           action: Optional[torch.Tensor] = None):
+    hidden, lstm_state = self.get_states(x, lstm_state, done)
     logits = self.actor(hidden)
     probs = Categorical(logits=logits)
     if action is None:
       action = probs.sample()
-    return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
+    return action, probs.log_prob(action), probs.entropy(), self.critic(hidden), lstm_state
 
 
 if __name__ == "__main__":
@@ -172,9 +211,17 @@ if __name__ == "__main__":
   start_time = time.time()
   next_obs = torch.Tensor(envs.reset()).to(device)
   next_done = torch.zeros(args.num_envs).to(device)
+  next_lstm_state = (
+      torch.zeros(agent.lstm.num_layers, args.num_envs,
+                  agent.lstm.hidden_size).to(device),
+      torch.zeros(agent.lstm.num_layers, args.num_envs,
+                  agent.lstm.hidden_size).to(device),
+  )  # hidden and cell states (see https://youtu.be/8HyCNIVRbSU)
   num_updates = args.total_timesteps // args.batch_size
 
   for update in range(1, num_updates + 1):
+    initial_lstm_state = (
+        next_lstm_state[0].clone(), next_lstm_state[1].clone())
     # Annealing the rate if instructed to do so.
     if args.anneal_lr:
       frac = 1.0 - (update - 1.0) / num_updates
@@ -188,7 +235,8 @@ if __name__ == "__main__":
 
       # ALGO LOGIC: action logic
       with torch.no_grad():
-        action, logprob, _, value = agent.get_action_and_value(next_obs)
+        action, logprob, _, value, next_lstm_state = agent.get_action_and_value(
+            next_obs, next_lstm_state, next_done)
         values[step] = value.flatten()
       actions[step] = action
       logprobs[step] = logprob
@@ -198,7 +246,9 @@ if __name__ == "__main__":
       rewards[step] = torch.tensor(reward).to(device).view(-1)
       next_obs, next_done = torch.Tensor(next_obs).to(
           device), torch.Tensor(done).to(device)
-      next_value = agent.get_value(next_obs).reshape(1, -1)
+      next_value = agent.get_value(next_obs,
+                                   next_lstm_state,
+                                   next_done).reshape(1, -1)
 
       for item in info:
         if "episode" in item.keys():
@@ -226,20 +276,31 @@ if __name__ == "__main__":
     batch_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
     batch_log_probs = logprobs.reshape(-1)
     batch_actions = actions.reshape((-1,) + envs.single_action_space.shape)
+    batch_dones = dones.reshape(-1)
     batch_advantages = advantages.reshape(-1)
     batch_returns = returns.reshape(-1)
     batch_values = values.reshape(-1)
 
     # Optimizing the policy and value network
-    batch_inds = np.arange(args.batch_size)
-    for epoch in range(args.update_epochs):
-      np.random.shuffle(batch_inds)
-      for start in range(0, args.batch_size, args.minibatch_size):
-        end = start + args.minibatch_size
-        minibatch_inds = batch_inds[start:end]
+    assert args.num_envs % args.num_minibatches == 0
 
-        _, new_log_probs, entropy, new_values = agent.get_action_and_value(
-            batch_obs[minibatch_inds], batch_actions.long()[minibatch_inds])
+    envs_per_batch = args.num_envs // args.num_minibatches
+    env_inds = np.arange(args.num_envs)
+    flat_inds = np.arange(args.batch_size).reshape(
+        args.num_steps, args.num_envs)
+    for epoch in range(args.update_epochs):
+      np.random.shuffle(env_inds)
+      for start in range(0, args.num_envs, envs_per_batch):
+        end = start + envs_per_batch
+        minibatch_env_inds = env_inds[start:end]
+        minibatch_inds = flat_inds[:, minibatch_env_inds].ravel()
+
+        _, new_log_probs, entropy, new_values, _ = agent.get_action_and_value(
+            batch_obs[minibatch_inds],
+            (initial_lstm_state[0][:, minibatch_env_inds],
+             initial_lstm_state[1][:, minibatch_env_inds]),
+            batch_dones[minibatch_inds],
+            batch_actions.long()[minibatch_inds])
         loss, info = ppo_loss(
             batch_advantages=batch_advantages[minibatch_inds],
             batch_log_probs=batch_log_probs[minibatch_inds],
