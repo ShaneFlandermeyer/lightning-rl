@@ -58,13 +58,15 @@ def ppo_loss(
     explained_var = explained_variance(batch_values, batch_returns)
     
   # Compute info dictionary
-  info = {}
-  info['loss/value_loss'] = value_loss.item()
-  info['loss/policy_loss'] = policy_loss.item()
-  info['loss/entropy_loss'] = entropy_loss.item()
-  info['metrics/approx_kl'] = approx_kl.item()
-  info['metrics/explained_variance'] = explained_var.item()
-  info['metrics/clip_fraction'] = clip_fraction.item()
+  info = {
+    'loss/value_loss': value_loss.item(),
+    'loss/policy_loss': policy_loss.item(),
+    'loss/total_loss': loss.item(),
+    'loss/entropy_loss': entropy_loss.item(),
+    'metrics/approx_kl': approx_kl.item(),
+    'metrics/explained_variance': explained_var.item(),
+    'metrics/clip_fraction': clip_fraction.item(),
+  }
 
   return loss, info
 
