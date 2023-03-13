@@ -216,28 +216,29 @@ if __name__ == "__main__":
   pbar = tqdm(range(args.total_timesteps))
   for update in range(1, num_updates + 1):
     initial_gru_state = next_gru_state.clone()
+    
     # Annealing the rate if instructed to do so.
     if args.anneal_lr:
-      frac = 1.0 - (update - 1.0) / num_updates
-      current_lr = frac * args.learning_rate
+      lr_frac = 1.0 - (update - 1.0) / num_updates
+      current_lr = lr_frac * args.learning_rate
       optimizer.param_groups[0]["lr"] = current_lr
 
-    for step in range(0, args.num_steps):
+    for istep in range(0, args.num_steps):
       global_step += 1 * args.num_envs
-      obs[step] = next_obs
-      dones[step] = next_done
+      obs[istep] = next_obs
+      dones[istep] = next_done
 
       # ALGO LOGIC: action logic
       with torch.no_grad():
         action, logprob, _, value, next_gru_state = agent.get_action_and_value(
             next_obs, next_gru_state, next_done)
-        values[step] = value.flatten()
-      actions[step] = action
-      logprobs[step] = logprob
+        values[istep] = value.flatten()
+      actions[istep] = action
+      logprobs[istep] = logprob
 
       # TRY NOT TO MODIFY: execute the game and log data.
       next_obs, reward, done, info = envs.step(action.cpu().numpy())
-      rewards[step] = torch.tensor(reward).to(device).view(-1)
+      rewards[istep] = torch.tensor(reward).to(device).view(-1)
       next_obs, next_done = torch.Tensor(next_obs).to(
           device), torch.Tensor(done).to(device)
       next_value = agent.get_value(next_obs,
