@@ -5,6 +5,7 @@ import random
 import time
 from distutils.util import strtobool
 from typing import Optional, Tuple
+from tqdm import tqdm, trange
 
 # import gymnasium as gym
 import gym
@@ -212,13 +213,14 @@ if __name__ == "__main__":
                                agent.gru.hidden_size).to(device)
   num_updates = args.total_timesteps // args.batch_size
 
+  pbar = tqdm(range(args.total_timesteps))
   for update in range(1, num_updates + 1):
     initial_gru_state = next_gru_state.clone()
     # Annealing the rate if instructed to do so.
     if args.anneal_lr:
       frac = 1.0 - (update - 1.0) / num_updates
-      lrnow = frac * args.learning_rate
-      optimizer.param_groups[0]["lr"] = lrnow
+      current_lr = frac * args.learning_rate
+      optimizer.param_groups[0]["lr"] = current_lr
 
     for step in range(0, args.num_steps):
       global_step += 1 * args.num_envs
@@ -244,8 +246,9 @@ if __name__ == "__main__":
 
       for item in info:
         if "episode" in item.keys():
-          print(
-              f"global_step={global_step}, episodic_return={item['episode']['r']}")
+          pbar.n = global_step
+          pbar.desc = f"Episode reward: {item['episode']['r']:.2f}"
+          pbar.refresh()
           writer.add_scalar("charts/episodic_return",
                             item["episode"]["r"], global_step)
           writer.add_scalar("charts/episodic_length",
