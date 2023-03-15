@@ -10,7 +10,10 @@ def estimate_advantage(rewards: torch.Tensor,
                        last_done: torch.Tensor,
                        n_steps: int,
                        gamma: float,
-                       gae_lambda: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+                       gae_lambda: float = 1.0,
+                       normalize_return: bool = False,
+                       normalize_advantage: bool = False
+                       ) -> Tuple[torch.Tensor, torch.Tensor]:
   """
   Estimate the advantage from an n-step rollout using generalized advantage estimation (GAE)
 
@@ -51,6 +54,11 @@ def estimate_advantage(rewards: torch.Tensor,
     advantages[t] = last_advantage_estimate = delta + gamma * \
         gae_lambda * next_non_terminal * last_advantage_estimate
   returns = advantages + values
+
+  if normalize_return:
+    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+  if normalize_advantage:
+    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
   return advantages, returns
 

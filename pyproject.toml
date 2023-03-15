@@ -5,12 +5,11 @@ description = ""
 authors = ["ShaneFlandermeyer <shaneflandermeyer@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 pytorch-lightning = "^1.7.7"
 opencv-python = "^4.6.0"
-gym = {extras = ["accept-rom-license", "all"], version = "^0.26.2"}
+Gymnasium = {extras = ["accept-rom-license", "all"], version = "^0.26.3"}
 torch = "^1.13.0"
-Gymnasium = "^0.26.3"
 
 [tool.poetry.dev-dependencies]
 
