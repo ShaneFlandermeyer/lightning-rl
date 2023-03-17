@@ -21,7 +21,8 @@ def ppo_loss(
         new_values: Tensor,
         entropy: Tensor,
         # Configuration parameters
-        clip_range: float = 0.2,
+        policy_clip_range: float = 0.2,
+        value_clip_range: Optional[float] = None,
         value_coef: float = 1,
         entropy_coef: float = 0.0,
         normalize_advantage: bool = True,
@@ -34,12 +35,23 @@ def ppo_loss(
   ratio = torch.exp(new_log_probs - batch_log_probs)
   policy_loss_1 = batch_advantages * ratio
   policy_loss_2 = batch_advantages * torch.clamp(ratio,
-                                                 1 - clip_range,
-                                                 1 + clip_range)
+                                                 1 - policy_clip_range,
+                                                 1 + policy_clip_range)
   policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
 
-  # Compute the value loss
-  value_loss = F.mse_loss(new_values, batch_returns)
+  if value_clip_range is None:
+    # Directly use the latest value network output to compute the loss
+    value_loss = F.mse_loss(new_values, batch_returns)
+  else:
+    # Clip the difference between the old and new value functions
+    values_clipped = batch_values + torch.clamp(new_values - batch_values,
+                                                -value_clip_range,
+                                                value_clip_range)
+    # Select the maximum loss between the clipped and unclipped 
+    value_loss_unclipped = (new_values - batch_returns)**2
+    value_loss_clipped = (values_clipped - batch_returns)**2
+    value_loss_max = torch.max(value_loss_unclipped, value_loss_clipped)
+    value_loss = value_loss_max.mean()
 
   # Entropy regularizer
   if entropy is None:
@@ -53,22 +65,23 @@ def ppo_loss(
   # Compute metrics
   with torch.no_grad():
     clip_fraction = torch.mean(
-        (torch.abs(ratio - 1) > clip_range).float())
+        (torch.abs(ratio - 1) > policy_clip_range).float())
     approx_kl = torch.mean(batch_log_probs - new_log_probs)
     explained_var = explained_variance(batch_values, batch_returns)
-    
+
   # Compute info dictionary
   info = {
-    'loss/value_loss': value_loss.item(),
-    'loss/policy_loss': policy_loss.item(),
-    'loss/total_loss': loss.item(),
-    'loss/entropy_loss': entropy_loss.item(),
-    'metrics/approx_kl': approx_kl.item(),
-    'metrics/explained_variance': explained_var.item(),
-    'metrics/clip_fraction': clip_fraction.item(),
+      'loss/value_loss': value_loss.item(),
+      'loss/policy_loss': policy_loss.item(),
+      'loss/total_loss': loss.item(),
+      'loss/entropy_loss': entropy_loss.item(),
+      'metrics/approx_kl': approx_kl.item(),
+      'metrics/explained_variance': explained_var.item(),
+      'metrics/clip_fraction': clip_fraction.item(),
   }
 
   return loss, info
+
 
 class PPO(OnPolicyModel):
   """
