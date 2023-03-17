@@ -5,8 +5,7 @@ import random
 import time
 from distutils.util import strtobool
 
-# import gymnasium as gym
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -170,16 +169,16 @@ if __name__ == "__main__":
   # TRY NOT TO MODIFY: start the game
   global_step = 0
   start_time = time.time()
-  next_obs = torch.Tensor(envs.reset()).to(device)
+  next_obs = torch.Tensor(envs.reset()[0]).to(device)
   next_done = torch.zeros(args.num_envs).to(device)
   num_updates = args.total_timesteps // args.batch_size
 
   for update in range(1, num_updates + 1):
     # Annealing the rate if instructed to do so.
     if args.anneal_lr:
-      frac = 1.0 - (update - 1.0) / num_updates
-      lrnow = frac * args.learning_rate
-      optimizer.param_groups[0]["lr"] = lrnow
+      lr_frac = 1.0 - (update - 1.0) / num_updates
+      current_lr = lr_frac * args.learning_rate
+      optimizer.param_groups[0]["lr"] = current_lr
 
     for step in range(0, args.num_steps):
       global_step += 1 * args.num_envs
@@ -194,21 +193,28 @@ if __name__ == "__main__":
       logprobs[step] = logprob
 
       # TRY NOT TO MODIFY: execute the game and log data.
-      next_obs, reward, done, info = envs.step(action.cpu().numpy())
+      next_obs, reward, terminated, truncated, infos = envs.step(action.cpu().numpy())
+      done = terminated | truncated
       rewards[step] = torch.tensor(reward).to(device).view(-1)
       next_obs, next_done = torch.Tensor(next_obs).to(
           device), torch.Tensor(done).to(device)
       next_value = agent.get_value(next_obs).reshape(1, -1)
 
-      for item in info:
-        if "episode" in item.keys():
-          print(
-              f"global_step={global_step}, episodic_return={item['episode']['r']}")
-          writer.add_scalar("charts/episodic_return",
-                            item["episode"]["r"], global_step)
-          writer.add_scalar("charts/episodic_length",
-                            item["episode"]["l"], global_step)
-          break
+      # Only print when at least 1 env is done
+      if "final_info" not in infos:
+        continue
+
+      mean_episodic_return = np.mean(
+          [info["episode"]["r"] for info in infos["final_info"] if info is not None])
+      mean_episodic_length = np.mean(
+          [info["episode"]["l"] for info in infos["final_info"] if info is not None])
+      print(
+          f"global_step={global_step}, mean_reward={mean_episodic_return:.2f}, mean_length={mean_episodic_length:.2f}")
+      writer.add_scalar("charts/mean_cumulative_reward",
+                        mean_episodic_return, global_step)
+      writer.add_scalar("charts/mean_episode_length",
+                        mean_episodic_length, global_step)
+
 
     # bootstrap value if not done
     advantages, returns = estimate_advantage(
@@ -248,7 +254,8 @@ if __name__ == "__main__":
             new_log_probs=new_log_probs,
             new_values=new_values.flatten(),
             entropy=entropy,
-            clip_range=args.clip_coef,
+            policy_clip_range=args.clip_coef,
+            value_clip_range=args.clip_coef,
             value_coef=args.vf_coef,
             entropy_coef=args.ent_coef,
             normalize_advantage=args.norm_adv,
