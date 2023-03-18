@@ -181,6 +181,7 @@ if __name__ == '__main__':
   envs.single_observation_space.dtype = np.float32
   
   # Create the replay buffer
+  # TODO: Getting some instabilities in the training, probably because timeouts are not handled properly in the replay buffer/bellman update. This shouldn't matter in newer versions of gym since the termination/truncation signals are separated
   rb = ReplayBuffer(args.buffer_size)
   rb.create_tensor('observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
   rb.create_tensor('next_observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
@@ -216,6 +217,7 @@ if __name__ == '__main__':
     for idx, d in enumerate(dones):
         if d:
             real_next_obs[idx] = infos[idx]["terminal_observation"]
+            
     rb.add(observations=obs, 
            next_observations=real_next_obs, 
            actions=actions, 
