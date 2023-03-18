@@ -1,5 +1,5 @@
-from collections import deque
-from typing import NamedTuple, Tuple
+from collections import deque, namedtuple
+from typing import NamedTuple, Optional, Tuple
 from gymnasium import spaces
 import numpy as np
 
@@ -67,6 +67,65 @@ class RecurrentRolloutBatch(NamedTuple):
   returns: torch.Tensor
   hidden_states: torch.Tensor
 
+class GeneralReplayBuffer():
+  # TODO: Implement a replay buffer that can store arbitrary tensors (which are specified as input arguments). This removes the need for the specific namedtuples defined above
+  # TODO: Only designed for single-environment scenearios
+  # Thinking similar to SKRL
+  def __init__(self, capacity: int):
+    self.capacity = capacity
+    # Store the names of all tensors that are created
+    self.items = set()
+    
+    self.index = 0
+    self.full = False
+  
+  def __len__(self):
+    return self.capacity if self.full else self.index
+  
+  def create_tensor(self,
+                    name: str,
+                    size: Tuple[int],
+                    dtype: Optional[np.dtype] = None):
+    self.items.add(name)
+    if dtype is None:
+      dtype = np.float32
+    setattr(self, name, np.zeros((self.capacity, *size), dtype=dtype))
+  
+  def add(self, **data: np.ndarray):
+    assert len(data) == len(self.items), "All tensors must be updated at the same time"
+    
+    for name, value in data.items():
+      if name in self.items:
+        getattr(self, name)[self.index] = value
+      else:
+        raise ValueError(f"kwarg '{name}' not found in buffer")
+       
+    # Update the buffer index
+    if self.index == self.capacity - 1:
+      self.full = True
+    self.index = (self.index + 1) % self.capacity
+        
+  def sample(self, batch_size: int, replace=False):
+    indices = np.random.choice(len(self), 
+                               size=min(batch_size, len(self)), 
+                               replace=replace)
+    # Create the batch of samples
+    Batch = namedtuple('Batch', self.items)
+    batch = Batch(*[getattr(self, name)[indices] for name in self.items])
+    return batch
+  
+  def reset(self):
+    self.index = 0
+    self.full = False
+  
+if __name__ == '__main__':
+  # TODO: Move this to a test file
+  rb = GeneralReplayBuffer(10)
+  rb.create_tensor('obs', (16,), dtype=np.float32)
+  rb.add(obs=np.random.randn(16,))
+  rb.sample(1)
+  print(rb.items)
+  print(rb.obs)
 
 class ReplayBuffer():
   """
