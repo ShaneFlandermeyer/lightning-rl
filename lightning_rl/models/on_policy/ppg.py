@@ -6,8 +6,8 @@ import numpy as np
 import torch
 
 from lightning_rl.common.buffers import RolloutBatch
-from lightning_rl.models import on_policy_models
-from lightning_rl.models.on_policy_models.ppo import PPO
+from lightning_rl.models import on_policy
+from lightning_rl.models.on_policy.ppo import PPO
 import torch.nn.functional as F
 from collections.abc import Iterable
 

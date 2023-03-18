@@ -3,7 +3,7 @@ import torch
 from lightning_rl.common.buffers import RecurrentRolloutBatch, RecurrentRolloutBuffer
 from lightning_rl.common.datasets import OnPolicyDataset
 from lightning_rl.common.utils import explained_variance
-from lightning_rl.models.on_policy_models import PPO
+from lightning_rl.models.on_policy import PPO
 import gym
 from typing import Iterator, Tuple, Union, Optional
 from torch import distributions
