@@ -7,6 +7,7 @@ from distutils.util import strtobool
 
 import gymnasium as gym
 import numpy as np
+from lightning_rl.models.off_policy import SAC
 import pybullet_envs  # noqa
 import torch
 import torch.nn as nn
@@ -168,6 +169,15 @@ if __name__ == '__main__':
   qf2_target = SoftQNetwork(envs).to(device)
   q_optimizer = optim.Adam(list(qf1.parameters()) + list(qf2.parameters()), lr=args.q_lr)
   actor_optimizer = optim.Adam(actor.parameters(), lr=args.policy_lr)
+  sac = SAC(actor=actor, 
+            q1=qf1, 
+            q2=qf2, 
+            q1_target=qf1_target, 
+            q2_target=qf2_target,
+            q_optimizer=q_optimizer, 
+            actor_optimizer=actor_optimizer,
+            gamma=args.gamma,
+            tau=args.tau)
   
   # Automatic entropy tuning
   if args.autotune:
@@ -181,7 +191,6 @@ if __name__ == '__main__':
   envs.single_observation_space.dtype = np.float32
   
   # Create the replay buffer
-  # TODO: Getting some instabilities in the training, probably because timeouts are not handled properly in the replay buffer/bellman update. This shouldn't matter in newer versions of gym since the termination/truncation signals are separated
   rb = ReplayBuffer(args.buffer_size)
   rb.create_tensor('observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
   rb.create_tensor('next_observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
@@ -238,6 +247,7 @@ if __name__ == '__main__':
     
     # ALGO LOGIC: training
     if global_step > args.learning_starts:
+      train_info = {}
       # Sample the replay buffer and convert to tensors
       data = rb.sample(args.batch_size)
       observations = torch.Tensor(data.observations).to(device)
@@ -248,34 +258,27 @@ if __name__ == '__main__':
       
       # Train critic
       with torch.no_grad():
-        next_state_actions, next_state_logprobs, _ = actor.get_action(next_observations)
-        q1_next_target = qf1_target(next_observations, next_state_actions)
-        q2_next_target = qf2_target(next_observations, next_state_actions)
-        min_q_next_target = torch.min(q1_next_target, q2_next_target) - alpha * next_state_logprobs
-        next_q_value = rewards.flatten() + (1 - dones.flatten()) * args.gamma * min_q_next_target.view(-1)
-        
-      q1_action_values = qf1(observations, actions).view(-1)
-      q2_action_values = qf2(observations, actions).view(-1)
-      q1_loss = F.mse_loss(q1_action_values, next_q_value)
-      q2_loss = F.mse_loss(q2_action_values, next_q_value)
-      q_loss = q1_loss + q2_loss
+        next_actions, next_logprobs, _ = actor.get_action(next_observations)
       
-      q_optimizer.zero_grad()
-      q_loss.backward()
-      q_optimizer.step()
-      
+      critic_info = sac.train_critic(obs=observations, 
+                                next_obs=next_observations,
+                                actions=actions,
+                                next_actions=next_actions,
+                                next_logprobs=next_logprobs,
+                                rewards=rewards, 
+                                dones=dones,
+                                alpha=alpha)
+      train_info.update(critic_info)
+
       # Train actor (every policy_frequency steps)
       if global_step % args.policy_frequency == 0:
         for _ in range(args.policy_frequency):
           a, logprob_a, _ = actor.get_action(observations)
-          q1_a = qf1(observations, a)
-          q2_a = qf2(observations, a)
-          min_q_a = torch.min(q1_a, q2_a).view(-1)
-          actor_loss = ((alpha * logprob_a) - min_q_a).mean()
-          
-          actor_optimizer.zero_grad()
-          actor_loss.backward()
-          actor_optimizer.step()
+          actor_info = sac.train_actor(obs=observations,
+                                       actions=a,
+                                       logprobs=logprob_a,
+                                       alpha=alpha)
+          train_info.update(actor_info)
           
           if args.autotune:
             with torch.no_grad():
@@ -289,19 +292,13 @@ if __name__ == '__main__':
     
       # update the target networks
       if global_step % args.target_network_frequency == 0:
-        for param, target_param in zip(qf1.parameters(), qf1_target.parameters()):
-          target_param.data.copy_(args.tau * param.data + (1 - args.tau) * target_param.data)
-        for param, target_param in zip(qf2.parameters(), qf2_target.parameters()):
-          target_param.data.copy_(args.tau * param.data + (1 - args.tau) * target_param.data)
+        sac.update_target_networks()
       
       # Write statistics to tensorboard
       if global_step % 100 == 0:
-        writer.add_scalar("losses/qf1_values", q1_action_values.mean().item(), global_step)
-        writer.add_scalar("losses/qf2_values", q2_action_values.mean().item(), global_step)
-        writer.add_scalar("losses/qf1_loss", q1_loss.item(), global_step)
-        writer.add_scalar("losses/qf2_loss", q2_loss.item(), global_step)
-        writer.add_scalar("losses/qf_loss", q_loss.item() / 2.0, global_step)
-        writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
+        for key, value in train_info.items():
+          writer.add_scalar(key, value, global_step)
+        # writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
         writer.add_scalar("losses/alpha", alpha, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
