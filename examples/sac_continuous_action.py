@@ -36,6 +36,8 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="HalfCheetah-v2",
         help="the id of the environment")
+    parser.add_argument("--num-envs", type=int, default=1,
+        help="number of parallel environments")
     parser.add_argument("--total-timesteps", type=int, default=1000000,
         help="total timesteps of the experiments")
     parser.add_argument("--buffer-size", type=int, default=int(1e6),
@@ -148,7 +150,6 @@ if __name__ == '__main__':
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
   
-  envs = gym.vector.SyncVectorEnv([make_env(args.env_id, args.seed, 0, args.capture_video, run_name)])
   
   # TRY NOT TO MODIFY: seeding
   random.seed(args.seed)
@@ -157,7 +158,8 @@ if __name__ == '__main__':
   torch.backends.cudnn.deterministic = args.torch_deterministic
   device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
   # env setup
-  envs = gym.vector.SyncVectorEnv([make_env(args.env_id, args.seed, 0, args.capture_video, run_name)])
+  # TODO: Add # envs argument
+  envs = gym.vector.AsyncVectorEnv([make_env(args.env_id, args.seed, 0, args.capture_video, run_name) for _ in range(args.num_envs)])
   assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
   
   max_action = float(envs.single_action_space.high[0])
@@ -191,7 +193,7 @@ if __name__ == '__main__':
   envs.single_observation_space.dtype = np.float32
   
   # Create the replay buffer
-  rb = ReplayBuffer(args.buffer_size)
+  rb = ReplayBuffer(args.buffer_size, n_envs=envs.num_envs)
   rb.create_tensor('observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
   rb.create_tensor('next_observations', envs.single_observation_space.shape, envs.single_observation_space.dtype)
   rb.create_tensor('actions', envs.single_action_space.shape, envs.single_action_space.dtype)
@@ -203,7 +205,7 @@ if __name__ == '__main__':
   
   # TRY NOT TO MODIFY: start the game
   obs, info = envs.reset(seed=args.seed)
-  for global_step in range(args.total_timesteps):
+  for global_step in range(0, args.total_timesteps, args.num_envs):
     # ALSO LOGIC: put action logic here
     if global_step < args.learning_starts:
       actions = np.array([envs.single_action_space.sample() for _ in range(envs.num_envs)])
@@ -247,60 +249,62 @@ if __name__ == '__main__':
     
     # ALGO LOGIC: training
     if global_step > args.learning_starts:
-      train_info = {}
-      # Sample the replay buffer and convert to tensors
-      data = rb.sample(args.batch_size)
-      observations = torch.Tensor(data.observations).to(device)
-      next_observations = torch.Tensor(data.next_observations).to(device)
-      actions = torch.Tensor(data.actions).to(device)
-      rewards = torch.Tensor(data.rewards).to(device)
-      dones = torch.Tensor(data.dones).to(device)
-      
-      # Train critic
-      with torch.no_grad():
-        next_actions, next_logprobs, _ = actor.get_action(next_observations)
-      
-      critic_info = sac.train_critic(obs=observations, 
-                                next_obs=next_observations,
-                                actions=actions,
-                                next_actions=next_actions,
-                                next_logprobs=next_logprobs,
-                                rewards=rewards, 
-                                dones=dones,
-                                alpha=alpha)
-      train_info.update(critic_info)
+      # If data is collected for multiple parallel environments, multiple network updates are performed to maintain the same sample efficiency
+      for istep in range(args.num_envs):
+        current_step = global_step + istep
+        train_info = {}
+        # Sample the replay buffer and convert to tensors
+        data = rb.sample(args.batch_size)
+        observations = torch.Tensor(data.observations).to(device)
+        next_observations = torch.Tensor(data.next_observations).to(device)
+        actions = torch.Tensor(data.actions).to(device)
+        rewards = torch.Tensor(data.rewards).to(device)
+        dones = torch.Tensor(data.dones).to(device)
+        
+        # Train critic
+        with torch.no_grad():
+          next_actions, next_logprobs, _ = actor.get_action(next_observations)
+        
+        critic_info = sac.train_critic(obs=observations, 
+                                      next_obs=next_observations,
+                                      actions=actions,
+                                      next_actions=next_actions,
+                                      next_logprobs=next_logprobs,
+                                      rewards=rewards, 
+                                      dones=dones,
+                                      alpha=alpha)
+        train_info.update(critic_info)
 
-      # Train actor (every policy_frequency steps)
-      if global_step % args.policy_frequency == 0:
-        for _ in range(args.policy_frequency):
-          a, logprob_a, _ = actor.get_action(observations)
-          actor_info = sac.train_actor(obs=observations,
-                                       actions=a,
-                                       logprobs=logprob_a,
-                                       alpha=alpha)
-          train_info.update(actor_info)
-          
-          if args.autotune:
-            with torch.no_grad():
-              _, logprob, _ = actor.get_action(observations)
-            alpha_loss = (-log_alpha * (logprob + target_entropy)).mean()
+        # Train actor (every policy_frequency steps)
+        if current_step % args.policy_frequency == 0:
+          for _ in range(args.policy_frequency):
+            a, logprob_a, _ = actor.get_action(observations)
+            actor_info = sac.train_actor(obs=observations,
+                                        actions=a,
+                                        logprobs=logprob_a,
+                                        alpha=alpha)
+            train_info.update(actor_info)
             
-            alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            alpha_optimizer.step()
-            alpha = log_alpha.exp().item()
-    
-      # update the target networks
-      if global_step % args.target_network_frequency == 0:
-        sac.update_target_networks()
+            if args.autotune:
+              with torch.no_grad():
+                _, logprob, _ = actor.get_action(observations)
+              alpha_loss = (-log_alpha * (logprob + target_entropy)).mean()
+              
+              alpha_optimizer.zero_grad()
+              alpha_loss.backward()
+              alpha_optimizer.step()
+              alpha = log_alpha.exp().item()
       
-      # Write statistics to tensorboard
-      if global_step % 100 == 0:
-        for key, value in train_info.items():
-          writer.add_scalar(key, value, global_step)
-        # writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
-        writer.add_scalar("losses/alpha", alpha, global_step)
-        print("SPS:", int(global_step / (time.time() - start_time)))
-        writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
-        if args.autotune:
-            writer.add_scalar("losses/alpha_loss", alpha_loss.item(), global_step)
+        # update the target networks
+        if current_step % args.target_network_frequency == 0:
+          sac.update_target_networks()
+        
+        # Write statistics to tensorboard
+        if current_step % 100 == 0:
+          for key, value in train_info.items():
+            writer.add_scalar(key, value, current_step)
+          writer.add_scalar("losses/alpha", alpha, current_step)
+          print("SPS:", int(current_step / (time.time() - start_time)))
+          writer.add_scalar("charts/SPS", int(current_step / (time.time() - start_time)), current_step)
+          if args.autotune:
+              writer.add_scalar("losses/alpha_loss", alpha_loss.item(), current_step)
