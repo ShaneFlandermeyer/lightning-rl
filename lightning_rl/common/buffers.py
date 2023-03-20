@@ -12,9 +12,8 @@ class ReplayBuffer():
   """
   A generalized replay buffer class for storing arbitrary tensors
   """
-  def __init__(self, capacity: int, n_envs: int = 1):
+  def __init__(self, capacity: int):
     self.capacity = capacity
-    self.n_envs = n_envs
     # Store the names of all tensors that are created
     self.items = set()
     
@@ -56,27 +55,16 @@ class ReplayBuffer():
     """
     assert len(data) == len(self.items), "All tensors must be updated at the same time"
     
-    istart = self.index
-    iend = (self.index + self.n_envs) % self.capacity
-    
     for name, value in data.items():
-      # Without this, the code below will fail for 1D arrays since buffer values are assigned to row slices, which must be 2D column vectors.
-      if isinstance(value, np.ndarray) and value.ndim == 1:
-        value = value[:, np.newaxis]
-      
       if name in self.items:
-        if istart > iend:
-          getattr(self, name)[istart:] = value[:self.capacity - istart]
-          getattr(self, name)[:iend] = value[self.capacity - istart:]
-        else:
-          getattr(self, name)[istart:iend] = value
+        getattr(self, name)[self.index] = value
       else:
         raise ValueError(f"kwarg '{name}' not found in buffer")
        
     # Update the buffer index
-    if iend == self.capacity or istart > iend:
+    if self.index == self.capacity - 1:
       self.full = True
-    self.index = (self.index + self.n_envs) % self.capacity
+    self.index = (self.index + 1) % self.capacity
         
   def sample(self, batch_size: int, replace=False):
     """
