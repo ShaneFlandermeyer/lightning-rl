@@ -29,7 +29,7 @@ class EncoderCNN(nn.Module):
     
     conv_out_shape = get_out_shape(self.convs, obs_shape)
     self.fc = nn.Sequential(
-      nn.Linear(conv_out_shape, feature_dim),
+      nn.Linear(np.prod(conv_out_shape), feature_dim),
       nn.LayerNorm(feature_dim),
     )
     

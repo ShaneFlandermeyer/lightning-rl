@@ -23,16 +23,20 @@ class NatureEncoder(nn.Module):
     hidden_shape = self.conv3(self.conv2(self.conv1(x))).shape
     self.fc = nn.Linear(np.prod(hidden_shape), out_features)
 
-  def forward(self, x):
-    x = self.conv1(x)
-    x = torch.relu(x)
-    x = self.conv2(x)
-    x = torch.relu(x)
-    x = self.conv3(x)
-    x = torch.relu(x)
-    x = x.view(x.shape[0], -1)
-    x = self.fc(x)
-    return x
+  def forward(self, x, detach: bool = False):
+    h = self.conv1(x)
+    h = torch.relu(h)
+    h = self.conv2(h)
+    h = torch.relu(h)
+    h = self.conv3(h)
+    h = torch.relu(h)
+    
+    if detach:
+      h = h.detach()
+      
+    h = h.view(h.shape[0], -1)
+    h = self.fc(h)
+    return h
   
   def copy_conv_weights_from(self, source: nn.Module):
     self.conv1.weight.data = source.conv1.weight.data
