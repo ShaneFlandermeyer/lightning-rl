@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -93,3 +93,43 @@ class SAC():
     for param, target_param in zip(self.q2.parameters(), self.q2_target.parameters()):
       target_param.data.copy_(tau * param.data +
                               (1 - tau) * target_param.data)
+
+
+def squashed_gaussian_action(mean: torch.Tensor,
+                             std: torch.Tensor,
+                             action_scale: float,
+                             action_bias: float
+                             ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+  """
+  Sample an action from a Gaussian distribution, then squash it to the desired range.
+
+  Parameters
+  ----------
+  mean : torch.Tensor
+      Mean vector
+  std : torch.Tensor
+      Standard deviation vector (covariance diagonals)
+  action_scale : float
+      Span of the action space
+  action_bias : float
+      Minimum value of the action space
+
+  Returns
+  -------
+  Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+      A tuple containing:
+        - The sampled action
+        - The log probability of the action
+        - The squashed and scaled mean of the Gaussian distribution
+  """
+  # Sample an action from the Gaussian distribution, then squash/scale it
+  normal = torch.distributions.Normal(mean, std)
+  z = normal.rsample()
+  squashed_action = torch.tanh(z)
+  action = squashed_action * action_scale + action_bias
+  # Compute the log probabilities using the change-of-variables formula described here: https://arxiv.org/pdf/1812.05905.pdf
+  log_prob = normal.log_prob(z) - torch.log(1 - squashed_action.pow(2) + 1e-6)
+  log_prob = log_prob.sum(1, keepdim=True)
+  # Recompute the mean as well, which is useful if you want a deterministic policy after training
+  mean = torch.tanh(mean) * action_scale + action_bias
+  return action, log_prob, mean
