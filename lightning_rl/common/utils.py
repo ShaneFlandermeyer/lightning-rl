@@ -2,6 +2,7 @@ from gymnasium import spaces
 from typing import Tuple
 import numpy as np
 import torch
+import torch.nn as nn
 import gym
 
 
@@ -97,3 +98,24 @@ def clip_actions(actions: torch.Tensor, action_space: spaces.Space) -> np.ndarra
     clipped_actions = clipped_actions.astype(np.int32)
     
   return clipped_actions
+
+def get_out_shape(model: nn.Module, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+  """
+  Compute the shape of the output for the given model
+
+  Parameters
+  ----------
+  model : nn.Module
+      Torch module
+  in_shape : Tuple[int, ...]
+      Input tensor shape0
+
+  Returns
+  -------
+  Tuple[int, ...]
+      Output shape
+  """
+  # Get the output shape
+  with torch.no_grad():
+    x = torch.randn(*in_shape).unsqueeze(0)
+    return model(x).squeeze(0).shape
