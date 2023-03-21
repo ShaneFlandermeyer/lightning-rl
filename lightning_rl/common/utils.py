@@ -115,6 +115,8 @@ def get_out_shape(model: nn.Module, in_shape: Tuple[int, ...]) -> Tuple[int, ...
   Tuple[int, ...]
       Output shape
   """
+  if isinstance(model, nn.ModuleList):
+    model = nn.Sequential(*model)
   # Get the output shape
   with torch.no_grad():
     x = torch.randn(*in_shape).unsqueeze(0)

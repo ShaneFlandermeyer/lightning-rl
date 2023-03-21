@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 
 
-class NatureCNN(nn.Module):
+class NatureEncoder(nn.Module):
   """CNN architecture from the DQN Nature paper."""
 
   def __init__(self,
@@ -19,19 +19,27 @@ class NatureCNN(nn.Module):
     self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
     self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
     
-    
-
     x = torch.zeros(c, h, w)
     hidden_shape = self.conv3(self.conv2(self.conv1(x))).shape
     self.fc = nn.Linear(np.prod(hidden_shape), out_features)
 
   def forward(self, x):
     x = self.conv1(x)
-    x = nn.functional.relu(x)
+    x = torch.relu(x)
     x = self.conv2(x)
-    x = nn.functional.relu(x)
+    x = torch.relu(x)
     x = self.conv3(x)
-    x = nn.functional.relu(x)
+    x = torch.relu(x)
     x = x.view(x.shape[0], -1)
     x = self.fc(x)
     return x
+  
+  def copy_conv_weights_from(self, source: nn.Module):
+    self.conv1.weight.data = source.conv1.weight.data
+    self.conv1.bias.data = source.conv1.bias.data
+    self.conv2.weight.data = source.conv2.weight.data
+    self.conv2.bias.data = source.conv2.bias.data
+    self.conv3.weight.data = source.conv3.weight.data
+    self.conv3.bias.data = source.conv3.bias.data
+  
+  

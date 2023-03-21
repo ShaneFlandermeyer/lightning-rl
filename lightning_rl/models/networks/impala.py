@@ -2,7 +2,7 @@ from typing import List
 import torch.nn as nn
 import torch
 import numpy as np
-
+from lightning_rl.common.utils import get_out_shape
 
 class ResidualBlock(nn.Module):
   """A basic two-layer residual block."""
@@ -20,6 +20,12 @@ class ResidualBlock(nn.Module):
     out = nn.functional.relu(out)
     out = self.conv2(out)
     return out + x
+  
+  def copy_conv_weights_from(self, source: nn.Module):
+    self.conv1.weight.data = source.conv1.weight.data
+    self.conv1.bias.data = source.conv1.bias.data
+    self.conv2.weight.data = source.conv2.weight.data
+    self.conv2.bias.data = source.conv2.bias.data
 
 
 class ImpalaBlock(nn.Module):
@@ -43,37 +49,52 @@ class ImpalaBlock(nn.Module):
     x = self.res1(x)
     x = self.res2(x)
     return x
+  
+  def copy_conv_weights_from(self, source: nn.Module):
+    self.conv.weight.data = source.conv.weight.data
+    self.conv.bias.data = source.conv.bias.data
+    self.res1.copy_conv_weights_from(source.res1)
+    self.res2.copy_conv_weights_from(source.res2)
 
 
-class ImpalaNetwork(nn.Module):
+class ImpalaEncoder(nn.Module):
   """The full impala network from Espeholt et al. 2018."""
 
   def __init__(self, c: int, h: int, w: int,
                hidden_channels: List[int] = [16, 32, 32],
                out_features: int = 256) -> None:
-    super(ImpalaNetwork, self).__init__()
+    super(ImpalaEncoder, self).__init__()
     # Add the impala blocks to the network
     impala_blocks = [ImpalaBlock(
         in_channels=c, out_channels=hidden_channels[0])]
     for i in range(1, len(hidden_channels)):
       impala_blocks.append(
           ImpalaBlock(in_channels=hidden_channels[i-1], out_channels=hidden_channels[i]))
-    self.impala_blocks = nn.Sequential(*impala_blocks)
+    self.impala_blocks = nn.ModuleList(impala_blocks)
 
-    out_shape = self.impala_blocks(torch.zeros(c, h, w)).shape
+    out_shape = get_out_shape(self.impala_blocks, (c, h, w))
     self.fc = nn.Linear(in_features=np.prod(
         out_shape), out_features=out_features)
 
-  def forward(self, x: torch.Tensor) -> torch.Tensor:
-    x = self.impala_blocks(x)
-    x = nn.functional.relu(x)
-    x = x.view(x.shape[0], -1)
-    x = self.fc(x)
-    x = nn.functional.relu(x)
-    return x
+  def forward(self, x: torch.Tensor, detach: bool = False) -> torch.Tensor:
+    for i in range(len(self.impala_blocks)):
+      x = self.impala_blocks[i](x)
+    h = nn.functional.relu(x)
+    
+    if detach:
+      h = h.detach()
+      
+    h = h.view(h.shape[0], -1)
+    h = self.fc(h)
+    h = nn.functional.relu(h)
+    return h
   
+  def copy_conv_weights_from(self, source: nn.Module):
+    for i in range(len(self.impala_blocks)):
+      self.impala_blocks[i].copy_conv_weights_from(source.impala_blocks[i])
+
 if __name__ == '__main__':
   im = torch.zeros(1, 3, 84, 84)
-  net = ImpalaNetwork(*im.shape[1:])
+  net = ImpalaEncoder(*im.shape[1:])
   print(net)
   net(im)
