@@ -22,19 +22,12 @@ class NatureEncoder(nn.Module):
       layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2)),
       layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
     ])
-    
-    hidden_shape = get_out_shape(self.convs, (c, h, w))
-    self.fc = nn.Linear(np.prod(hidden_shape), out_features)
 
-  def forward(self, x, detach: bool = False):
+  def forward(self, x):
     for conv in self.convs:
       x = torch.relu(conv(x))
-    
-    if detach:
-      x = x.detach() 
       
     x = x.view(x.shape[0], -1)
-    x = self.fc(x)
     return x
     
   def copy_conv_weights_from(self, source: nn.Module):

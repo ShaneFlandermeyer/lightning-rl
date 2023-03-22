@@ -23,7 +23,7 @@ class ReplayBuffer():
   def __len__(self):
     return self.capacity if self.full else self.index
   
-  def create_tensor(self,
+  def create_buffer(self,
                     name: str,
                     size: Tuple[int],
                     dtype: Optional[np.dtype] = None):
@@ -102,7 +102,7 @@ class ReplayBuffer():
 if __name__ == '__main__':
   # TODO: Move this to a test file
   rb = ReplayBuffer(10)
-  rb.create_tensor('obs', (16,), dtype=np.float32)
+  rb.create_buffer('obs', (16,), dtype=np.float32)
   rb.add(obs=np.random.randn(16,))
   rb.sample(1)
   print(rb.items)

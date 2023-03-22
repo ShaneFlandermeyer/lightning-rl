@@ -200,15 +200,15 @@ if __name__ == '__main__':
 
   # Create the replay buffer
   rb = ReplayBuffer(args.buffer_size)
-  rb.create_tensor('observations', envs.single_observation_space.shape,
+  rb.create_buffer('observations', envs.single_observation_space.shape,
                    envs.single_observation_space.dtype)
-  rb.create_tensor('next_observations', envs.single_observation_space.shape,
+  rb.create_buffer('next_observations', envs.single_observation_space.shape,
                    envs.single_observation_space.dtype)
-  rb.create_tensor('actions', envs.single_action_space.shape,
+  rb.create_buffer('actions', envs.single_action_space.shape,
                    envs.single_action_space.dtype)
-  rb.create_tensor('rewards', (1,), np.float32)
-  rb.create_tensor('dones', (1,), bool)
-  rb.create_tensor('infos', (1,), dict)
+  rb.create_buffer('rewards', (1,), np.float32)
+  rb.create_buffer('dones', (1,), bool)
+  rb.create_buffer('infos', (1,), dict)
 
   start_time = time.time()
 
