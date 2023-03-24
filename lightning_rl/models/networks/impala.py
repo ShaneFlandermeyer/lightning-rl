@@ -62,7 +62,7 @@ class ImpalaEncoder(nn.Module):
 
   def __init__(self, c: int, h: int, w: int,
                hidden_channels: List[int] = [16, 32, 32],
-               out_features: int = 256) -> None:
+               ) -> None:
     super(ImpalaEncoder, self).__init__()
     # Add the impala blocks to the network
     impala_blocks = [ImpalaBlock(
@@ -72,21 +72,13 @@ class ImpalaEncoder(nn.Module):
           ImpalaBlock(in_channels=hidden_channels[i-1], out_channels=hidden_channels[i]))
     self.impala_blocks = nn.ModuleList(impala_blocks)
 
-    out_shape = get_out_shape(self.impala_blocks, (c, h, w))
-    self.fc = nn.Linear(in_features=np.prod(
-        out_shape), out_features=out_features)
-
-  def forward(self, x: torch.Tensor, detach: bool = False) -> torch.Tensor:
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     for i in range(len(self.impala_blocks)):
       x = self.impala_blocks[i](x)
     h = nn.functional.relu(x)
     
-    if detach:
-      h = h.detach()
-      
-    h = h.view(h.shape[0], -1)
-    h = self.fc(h)
-    h = nn.functional.relu(h)
+    h = h.view(h.size(0), -1)
+    
     return h
   
   def copy_conv_weights_from(self, source: nn.Module):
