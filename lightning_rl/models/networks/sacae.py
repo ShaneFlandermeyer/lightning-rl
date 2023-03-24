@@ -9,13 +9,10 @@ import gymnasium as gym
 
 class SACAEEncoder(nn.Module):
   """Convolutional encoder for image-based observations."""
-  def __init__(self, c: int, h: int, w: int,
-               out_features: int,
-               ) -> None:
+  def __init__(self, c: int, h: int, w: int) -> None:
     super().__init__()
     
     self.input_shape = (c, h, w)
-    self.feature_dim = out_features
     self.n_layers = 4
     self.n_filters = 32
     
@@ -24,13 +21,7 @@ class SACAEEncoder(nn.Module):
       self.convs.append(nn.Conv2d(self.n_filters, self.n_filters, 3, stride=1))
     self.convs = nn.ModuleList(self.convs)
     
-    conv_out_shape = get_out_shape(self.convs, self.input_shape)
-    self.fc = nn.Sequential(
-      nn.Linear(np.prod(conv_out_shape), out_features),
-      nn.LayerNorm(out_features),
-    )
-    
-  def forward_conv(self, x: torch.Tensor) -> torch.Tensor:
+  def forward(self, x: torch.Tensor) -> torch.Tensor:
     # Apply convolutional sequence
     for i in range(len(self.convs)):
       x = self.convs[i](x)
@@ -39,17 +30,6 @@ class SACAEEncoder(nn.Module):
     # Flatten
     h = x.view(x.size(0), -1)
     return h
-  
-  def forward(self, x: torch.Tensor, detach: bool = False) -> torch.Tensor:
-    # Apply convolutional sequence
-    h = self.forward_conv(x)
-    
-    if detach:
-      h = h.detach()
-    
-    out = self.fc(h)
-    out = torch.tanh(out)
-    return out
   
   def copy_conv_weights_from(self, source: nn.Module):
     for i in range(len(self.convs)):
