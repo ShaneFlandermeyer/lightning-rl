@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from lightning_rl.models.encoders import *
 
 
 class SAC():
@@ -93,6 +94,58 @@ class SAC():
     for param, target_param in zip(self.q2.parameters(), self.q2_target.parameters()):
       target_param.data.copy_(tau * param.data +
                               (1 - tau) * target_param.data)
+
+
+class VisualSAC(nn.Module):
+  def __init__(self, obs_shape, action_shape, hidden_dim, encoder_feature_dim, logstd_min, logstd_max, device):
+    super().__init__()
+
+    shared_cnn = NatureCNN(*obs_shape)
+
+    actor_proj = NormedProjection(shared_cnn.out_dim, encoder_feature_dim)
+    actor_encoder = Encoder(cnn=shared_cnn,
+                            projection=actor_proj)
+
+    critic_proj = NormedProjection(shared_cnn.out_dim, encoder_feature_dim)
+    critic_encoder = Encoder(cnn=shared_cnn,
+                             projection=critic_proj)
+    
+class Actor(nn.Module):
+  """MLP actor network."""
+
+  def __init__(self, encoder, action_dim, hidden_dim, log_std_min, log_std_max):
+    super().__init__()
+    self.encoder = encoder
+    self.mlp = nn.Sequential(
+        nn.Linear(self.encoder.out_dim, hidden_dim), nn.ReLU(),
+        nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+        nn.Linear(hidden_dim, 2 * action_dim))
+    self.log_std_min = log_std_min
+    self.log_std_max = log_std_max
+    self.apply(weight_init)
+
+  def forward(self, x, compute_pi=True, compute_log_pi=True, detach=False):
+    x = self.encoder(x, detach=detach)
+    mu, log_std = self.mlp(x).chunk(2, dim=-1)
+    log_std = torch.tanh(log_std)
+    log_std = self.log_std_min + 0.5 * \
+        (self.log_std_max - self.log_std_min) * (log_std + 1)
+
+    if compute_pi:
+      std = log_std.exp()
+      noise = torch.randn_like(mu)
+      pi = mu + noise * std
+    else:
+      pi = None
+
+    if compute_log_pi:
+      log_pi = gaussian_logprob(noise, log_std)
+    else:
+      log_pi = None
+
+    mu, pi, log_pi = squash(mu, pi, log_pi)
+    return mu, pi, log_pi, log_std
+ 
 
 
 def squashed_gaussian_action(mean: torch.Tensor,
