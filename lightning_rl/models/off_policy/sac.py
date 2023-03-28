@@ -14,9 +14,6 @@ class SAC(nn.Module):
                critic_target,
                device,
                action_shape,
-               # TODO: Fill out the rest of the arguments
-               actor_update_freq: int = 2,
-               critic_target_upate_freq: int = 1,
                tau: float = 0.005,
                gamma: float = 0.99,
                init_temperature: float = 0.1,
@@ -29,11 +26,8 @@ class SAC(nn.Module):
     self.critic = critic
     self.critic_target = critic_target
     self.device = device
-    self.actor_update_freq = actor_update_freq
-    self.critic_target_upate_freq = critic_target_upate_freq
     self.tau = tau
     self.gamma = gamma
-    self.init_temperature = init_temperature
 
     self.log_alpha = torch.tensor(
         np.log(init_temperature), requires_grad=True, device=device)
@@ -106,7 +100,7 @@ class SAC(nn.Module):
     actions, logprobs, _ = self.actor(obs)
     actor_Q1, actor_Q2 = self.critic(obs, actions)
     actor_Q = torch.min(actor_Q1, actor_Q2)
-    actor_loss = (self.alpha * logprobs - actor_Q).mean()
+    actor_loss = (self.alpha.detach() * logprobs - actor_Q).mean()
 
     self.actor_optimizer.zero_grad()
     actor_loss.backward()
@@ -115,9 +109,10 @@ class SAC(nn.Module):
     info = {"losses/actor_loss": actor_loss.item()}
     return info
 
-  def update_alpha(self, logprobs):
-    self.log_alpha_optimizer.zero_grad()
+  def update_alpha(self, logprobs: torch.Tensor):
     alpha_loss = (self.alpha*(-logprobs - self.target_entropy).detach()).mean()
+
+    self.log_alpha_optimizer.zero_grad()
     alpha_loss.backward()
     self.log_alpha_optimizer.step()
 
@@ -127,16 +122,10 @@ class SAC(nn.Module):
     }
     return info
 
-  def update(self, obs, actions, rewards, next_obs, dones):
-    # TODO: Update the network with a batch of data
-    
-    info = {
-      "train/batch_reward": rewards.mean().item(),
-    }
-
-  def soft_target_update(self, tau: float = 0.005):
+  def soft_target_update(self):
     for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
-      target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+      target_param.data.copy_(self.tau * param.data +
+                              (1 - self.tau) * target_param.data)
 
   def save_model(self, path: str, filename: str):
     torch.save(self.state_dict(), os.path.join(path, f'{filename}.pt'))
@@ -147,20 +136,36 @@ class Actor(nn.Module):
     super().__init__()
     self.fc1 = nn.Linear(4, 256)
 
+  def forward(self, x):
+    action = torch.rand((1,))
+    logprob = torch.rand((1,))
+    mean = torch.rand((1,))
+    return action, logprob, mean
+
 
 class Critic(nn.Module):
   def __init__(self):
     super().__init__()
     self.fc1 = nn.Linear(4, 256)
 
+  def forward(self, x, action):
+    q1 = torch.rand((1,))
+    q2 = torch.rand((1,))
+    return q1, q2
+
 
 if __name__ == '__main__':
   actor = Actor()
+  critic = Critic()
+  critic_target = Critic()
   model = SAC(actor=actor,
-              critic=actor,
-              critic_target=actor,
+              critic=critic,
+              critic_target=critic_target,
               device=torch.device('cpu'),
               action_shape=(1,))
+  # model.update_critic(obs=torch.rand((1, 4)), actions=torch.rand((1, 1)), rewards=torch.rand(
+  #     (1, 1)), next_obs=torch.rand((1, 4)), dones=torch.rand((1, 1)))
+  model.update_actor(obs=torch.rand((1, 4)))
 # class SAC():
 #   def __init__(self,
 #                actor: nn.Module,
