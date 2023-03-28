@@ -4,19 +4,20 @@ import os
 import random
 import time
 from distutils.util import strtobool
+from typing import Tuple
 
 import gymnasium as gym
 import numpy as np
 from lightning_rl.models.off_policy import SAC
-import pybullet_envs  # noqa
+# import pybullet_envs  # noqa
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-# from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from lightning_rl.common.buffers import ReplayBuffer
 from lightning_rl.models.off_policy.sac import squashed_gaussian_action
+import copy
 
 
 def parse_args():
@@ -86,26 +87,8 @@ def make_env(env_id, seed, idx, capture_video, run_name):
   return thunk
 
 
-class SoftQNetwork(nn.Module):
-  def __init__(self, env: gym.vector.VectorEnv):
-    super().__init__()
-    self.fc1 = nn.Linear(np.prod(env.single_observation_space.shape) +
-                         np.prod(env.single_action_space.shape), 256)
-    self.fc2 = nn.Linear(256, 256)
-    self.fc3 = nn.Linear(256, 1)
-
-  def forward(self, x: torch.Tensor, a: torch.Tensor):
-    x = torch.cat([x, a], dim=1)
-    x = F.relu(self.fc1(x))
-    x = F.relu(self.fc2(x))
-    x = self.fc3(x)
-    return x
-
-
 LOG_STD_MIN = 2
 LOG_STD_MAX = -5
-
-
 class Actor(nn.Module):
   def __init__(self, env: gym.vector.VectorEnv):
     super().__init__()
@@ -130,13 +113,33 @@ class Actor(nn.Module):
     logstd = self.fc_logstd(x)
     logstd = torch.tanh(logstd)
     logstd = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (logstd + 1)
-
-    return mean, logstd
-
-  def get_action(self, x):
-    mean, logstd = self(x)
     std = logstd.exp()
+
     return squashed_gaussian_action(mean, std, self.action_scale, self.action_bias)
+
+
+class Critic(nn.Module):
+  def __init__(self, obs_shape: Tuple[int], act_shape: Tuple[int]):
+    super().__init__()
+    self.Q1 = nn.Sequential(
+        nn.Linear(np.prod(obs_shape) + np.prod(act_shape), 256),
+        nn.ReLU(),
+        nn.Linear(256, 256),
+        nn.ReLU(),
+        nn.Linear(256, 1),
+    )
+
+    self.Q2 = nn.Sequential(
+        nn.Linear(np.prod(obs_shape) + np.prod(act_shape), 256),
+        nn.ReLU(),
+        nn.Linear(256, 256),
+        nn.ReLU(),
+        nn.Linear(256, 1),
+    )
+    
+  def forward(self, obs: torch.Tensor, act: torch.Tensor):
+    x = torch.cat([obs, act], dim=1)
+    return self.Q1(x), self.Q2(x)
 
 
 if __name__ == '__main__':
@@ -148,9 +151,6 @@ if __name__ == '__main__':
       "|param|value|\n|-|-|\n%s" % (
           "\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
   )
-
-  envs = gym.vector.SyncVectorEnv(
-      [make_env(args.env_id, args.seed, 0, args.capture_video, run_name)])
 
   # TRY NOT TO MODIFY: seeding
   random.seed(args.seed)
@@ -165,46 +165,31 @@ if __name__ == '__main__':
   assert isinstance(envs.single_action_space,
                     gym.spaces.Box), "only continuous action space is supported"
 
-  max_action = float(envs.single_action_space.high[0])
-
   actor = Actor(envs).to(device)
-  qf1 = SoftQNetwork(envs).to(device)
-  qf2 = SoftQNetwork(envs).to(device)
-  qf1_target = SoftQNetwork(envs).to(device)
-  qf2_target = SoftQNetwork(envs).to(device)
-  q_optimizer = optim.Adam(list(qf1.parameters()) +
-                           list(qf2.parameters()), lr=args.q_lr)
-  actor_optimizer = optim.Adam(actor.parameters(), lr=args.policy_lr)
+  critic = Critic(envs.single_observation_space.shape,
+                  envs.single_action_space.shape).to(device)
+  critic_target = copy.deepcopy(critic).to(device)
   sac = SAC(actor=actor,
-            q1=qf1,
-            q2=qf2,
-            q1_target=qf1_target,
-            q2_target=qf2_target,
-            q_optimizer=q_optimizer,
-            actor_optimizer=actor_optimizer,
+            critic=critic,
+            critic_target=critic_target,
+            device=device,
+            action_shape=envs.single_action_space.shape,
+            obs_shape=envs.single_observation_space.shape,
             gamma=args.gamma,
-            tau=args.tau)
-
-  # Automatic entropy tuning
-  if args.autotune:
-    target_entropy = - \
-        torch.prod(torch.Tensor(
-            envs.single_action_space.shape).to(device)).item()
-    log_alpha = torch.zeros(1, requires_grad=True, device=device)
-    alpha = log_alpha.exp().item()
-    alpha_optimizer = optim.Adam([log_alpha], lr=args.q_lr)
-  else:
-    alpha = args.alpha
-
-  envs.single_observation_space.dtype = np.float32
+            tau=args.tau,
+            init_temperature=0.1,
+            actor_lr=args.policy_lr,
+            critic_lr=args.q_lr,
+            alpha_lr=args.q_lr,
+            )
 
   # Create the replay buffer
   rb = ReplayBuffer(args.buffer_size)
-  rb.create_buffer('observations', envs.single_observation_space.shape,
+  rb.create_buffer('observations', sac.obs_shape,
                    envs.single_observation_space.dtype)
-  rb.create_buffer('next_observations', envs.single_observation_space.shape,
+  rb.create_buffer('next_observations', sac.obs_shape,
                    envs.single_observation_space.dtype)
-  rb.create_buffer('actions', envs.single_action_space.shape,
+  rb.create_buffer('actions', sac.action_shape,
                    envs.single_action_space.dtype)
   rb.create_buffer('rewards', (1,), np.float32)
   rb.create_buffer('dones', (1,), bool)
@@ -220,8 +205,8 @@ if __name__ == '__main__':
       actions = np.array([envs.single_action_space.sample()
                          for _ in range(envs.num_envs)])
     else:
-      actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
-      actions = actions.detach().cpu().numpy()
+      obs_tensor = torch.FloatTensor(obs).to(sac.device)
+      actions, _ = sac.act(obs_tensor, deterministic=False)
 
     # TRY NOT TO MODIFY: Execute the game and log data
     next_obs, rewards, terminated, truncated, infos = envs.step(actions)
@@ -270,51 +255,33 @@ if __name__ == '__main__':
 
       # Train critic
       with torch.no_grad():
-        next_actions, next_logprobs, _ = actor.get_action(next_observations)
+        next_actions, next_logprobs = sac.act(
+            next_observations, deterministic=False)
 
-      critic_info = sac.train_critic(obs=observations,
-                                     next_obs=next_observations,
-                                     actions=actions,
-                                     next_actions=next_actions,
-                                     next_logprobs=next_logprobs,
-                                     rewards=rewards,
-                                     dones=dones,
-                                     alpha=alpha)
+      critic_info = sac.update_critic(obs=observations,
+                                      actions=actions,
+                                      rewards=rewards,
+                                      next_obs=next_observations,
+                                      dones=dones)
       train_info.update(critic_info)
 
       # Train actor (every policy_frequency steps)
       if global_step % args.policy_frequency == 0:
         for _ in range(args.policy_frequency):
-          a, logprob_a, _ = actor.get_action(observations)
-          actor_info = sac.train_actor(obs=observations,
-                                       actions=a,
-                                       logprobs=logprob_a,
-                                       alpha=alpha)
+          actor_info = sac.update_actor(obs=observations)
+          alpha_info = sac.update_alpha(logprobs=next_logprobs)
           train_info.update(actor_info)
-
-          if args.autotune:
-            with torch.no_grad():
-              _, logprob, _ = actor.get_action(observations)
-            alpha_loss = (-log_alpha * (logprob + target_entropy)).mean()
-
-            alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            alpha_optimizer.step()
-            alpha = log_alpha.exp().item()
+          train_info.update(alpha_info)
 
       # update the target networks
       if global_step % args.target_network_frequency == 0:
-        sac.update_target_networks()
+        sac.soft_target_update()
 
       # Write statistics to tensorboard
       if global_step % 100 == 0:
         for key, value in train_info.items():
           writer.add_scalar(key, value, global_step)
         # writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
-        writer.add_scalar("losses/alpha", alpha, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
-        writer.add_scalar("charts/SPS", int(global_step /
+        writer.add_scalar("train/SPS", int(global_step /
                           (time.time() - start_time)), global_step)
-        if args.autotune:
-          writer.add_scalar("losses/alpha_loss",
-                            alpha_loss.item(), global_step)

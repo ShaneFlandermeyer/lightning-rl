@@ -4,18 +4,18 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-# from lightning_rl.modules.encoder import *
 
 
 class SAC(nn.Module):
   def __init__(self,
-               actor,
-               critic,
-               critic_target,
-               device,
-               action_shape,
-               tau: float = 0.005,
+               actor: nn.Module,
+               critic: nn.Module,
+               critic_target: nn.Module,
+               device: torch.device,
+               obs_shape: Tuple[int, ...],
+               action_shape: Tuple[int, ...],
                gamma: float = 0.99,
+               tau: float = 0.005,
                init_temperature: float = 0.1,
                actor_lr: float = 1e-3,
                critic_lr: float = 1e-3,
@@ -26,8 +26,10 @@ class SAC(nn.Module):
     self.critic = critic
     self.critic_target = critic_target
     self.device = device
-    self.tau = tau
+    self.action_shape = action_shape
+    self.obs_shape = obs_shape
     self.gamma = gamma
+    self.tau = tau
 
     self.log_alpha = torch.tensor(
         np.log(init_temperature), requires_grad=True, device=device)
@@ -53,14 +55,12 @@ class SAC(nn.Module):
   def alpha(self):
     return self.log_alpha.exp()
 
-  def act(self, obs: np.ndarray, deterministic: bool = False):
+  def act(self, obs: torch.Tensor, deterministic: bool = False):
     with torch.no_grad():
-      obs = torch.FloatTensor(obs).to(self.device)
-      obs = obs.unsqueeze(0)
-      action, _, mean = self.actor(obs)
+      action, logprobs, mean = self.actor(obs)
       if deterministic:
         action = mean
-      return action.cpu().numpy().flatten()
+      return action.cpu().numpy(), logprobs
 
   def update_critic(self,
                     obs: torch.Tensor,
@@ -78,8 +78,8 @@ class SAC(nn.Module):
 
     # TODO: Add a flag to detach encoder here
     current_Q1, current_Q2 = self.critic(obs, actions)
-    Q1_loss = F.mse_loss(current_Q1, next_q_value)
-    Q2_loss = F.mse_loss(current_Q2, next_q_value)
+    Q1_loss = F.mse_loss(current_Q1.view(-1), next_q_value)
+    Q2_loss = F.mse_loss(current_Q2.view(-1), next_q_value)
     critic_loss = Q1_loss + Q2_loss
 
     self.critic_optimizer.zero_grad()
@@ -87,8 +87,8 @@ class SAC(nn.Module):
     self.critic_optimizer.step()
 
     info = {
-        "losses/Q1_loss": Q1_loss.item(),
-        "losses/Q2_loss": Q2_loss.item(),
+        "loss/Q1_loss": Q1_loss.item(),
+        "loss/Q2_loss": Q2_loss.item(),
         "train/Q1_values": current_Q1.mean().item(),
         "train/Q2_values": current_Q2.mean().item(),
     }
@@ -106,7 +106,7 @@ class SAC(nn.Module):
     actor_loss.backward()
     self.actor_optimizer.step()
 
-    info = {"losses/actor_loss": actor_loss.item()}
+    info = {"loss/actor_loss": actor_loss.item()}
     return info
 
   def update_alpha(self, logprobs: torch.Tensor):
@@ -117,7 +117,7 @@ class SAC(nn.Module):
     self.log_alpha_optimizer.step()
 
     info = {
-        "losses/alpha_loss": alpha_loss.item(),
+        "loss/alpha_loss": alpha_loss.item(),
         "train/alpha": self.alpha.item()
     }
     return info
@@ -153,123 +153,6 @@ class Critic(nn.Module):
     q2 = torch.rand((1,))
     return q1, q2
 
-
-if __name__ == '__main__':
-  actor = Actor()
-  critic = Critic()
-  critic_target = Critic()
-  model = SAC(actor=actor,
-              critic=critic,
-              critic_target=critic_target,
-              device=torch.device('cpu'),
-              action_shape=(1,))
-  # model.update_critic(obs=torch.rand((1, 4)), actions=torch.rand((1, 1)), rewards=torch.rand(
-  #     (1, 1)), next_obs=torch.rand((1, 4)), dones=torch.rand((1, 1)))
-  model.update_actor(obs=torch.rand((1, 4)))
-# class SAC():
-#   def __init__(self,
-#                actor: nn.Module,
-#                q1: nn.Module,
-#                q2: nn.Module,
-#                q1_target: nn.Module,
-#                q2_target: nn.Module,
-#                actor_optimizer: torch.optim.Optimizer,
-#                q_optimizer: torch.optim.Optimizer,
-#                gamma: float = 0.99,
-#                tau: float = 0.005,
-#                ) -> None:
-#     self.actor = actor
-#     self.actor_optimizer = actor_optimizer
-
-#     self.q1 = q1
-#     self.q2 = q2
-#     self.q1_target = q1_target
-#     self.q2_target = q2_target
-#     self.q_optimizer = q_optimizer
-#     self.gamma = gamma
-#     self.tau = tau
-
-#   def train_critic(self,
-#                    obs: torch.Tensor,
-#                    next_obs: torch.Tensor,
-#                    actions: torch.Tensor,
-#                    next_actions: torch.Tensor,
-#                    next_logprobs: torch.Tensor,
-#                    rewards: torch.Tensor,
-#                    dones: torch.Tensor,
-#                    alpha: float
-#                    ) -> dict:
-#     with torch.no_grad():
-#       q1_next_target = self.q1_target(next_obs, next_actions)
-#       q2_next_target = self.q2_target(next_obs, next_actions)
-#       min_q_next_target = torch.min(
-#           q1_next_target, q2_next_target) - alpha * next_logprobs
-#       next_q_value = rewards.flatten() + (1 - dones.flatten()) * \
-#           self.gamma * min_q_next_target.view(-1)
-
-#     q1_action_values = self.q1(obs, actions).view(-1)
-#     q2_action_values = self.q2(obs, actions).view(-1)
-#     q1_loss = F.mse_loss(q1_action_values, next_q_value)
-#     q2_loss = F.mse_loss(q2_action_values, next_q_value)
-#     q_loss = q1_loss + q2_loss
-
-#     self.q_optimizer.zero_grad()
-#     q_loss.backward()
-#     self.q_optimizer.step()
-
-#     info = {
-#         "losses/q1_loss": q1_loss.item(),
-#         "losses/q2_loss": q2_loss.item(),
-#         "losses/q1_values": q1_action_values.mean().item(),
-#         "losses/q2_values": q2_action_values.mean().item(),
-#     }
-#     return info
-
-#   def train_actor(self,
-#                   obs: torch.Tensor,
-#                   actions: torch.Tensor,
-#                   logprobs: torch.Tensor,
-#                   alpha: float) -> dict:
-#     q1 = self.q1(obs, actions)
-#     q2 = self.q2(obs, actions)
-#     min_q = torch.min(q1, q2).view(-1)
-#     actor_loss = (alpha * logprobs - min_q).mean()
-
-#     self.actor_optimizer.zero_grad()
-#     actor_loss.backward()
-#     self.actor_optimizer.step()
-
-#     info = {
-#         "losses/actor_loss": actor_loss.item(),
-#     }
-
-#     return info
-
-#   def update_target_networks(self, tau: Optional[float] = None):
-#     if tau is None:
-#       tau = self.tau
-
-#     for param, target_param in zip(self.q1.parameters(), self.q1_target.parameters()):
-#       target_param.data.copy_(tau * param.data +
-#                               (1 - tau) * target_param.data)
-#     for param, target_param in zip(self.q2.parameters(), self.q2_target.parameters()):
-#       target_param.data.copy_(tau * param.data +
-#                               (1 - tau) * target_param.data)
-
-
-# class VisualSAC(nn.Module):
-#   def __init__(self, obs_shape, action_shape, hidden_dim, encoder_feature_dim, logstd_min, logstd_max, device):
-#     super().__init__()
-
-#     shared_cnn = NatureCNN(*obs_shape)
-
-#     actor_proj = NormedProjection(shared_cnn.out_dim, encoder_feature_dim)
-#     actor_encoder = Encoder(cnn=shared_cnn,
-#                             projection=actor_proj)
-
-#     critic_proj = NormedProjection(shared_cnn.out_dim, encoder_feature_dim)
-#     critic_encoder = Encoder(cnn=shared_cnn,
-#                              projection=critic_proj)
 
 def squashed_gaussian_action(mean: torch.Tensor,
                              std: torch.Tensor,
