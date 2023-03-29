@@ -49,9 +49,6 @@ def get_action_dim(action_space: spaces.Space) -> int:
   else:
     raise NotImplementedError()
 
-# From stable baselines
-
-
 def explained_variance(y_pred: torch.tensor, y_true: torch.tensor) -> np.ndarray:
   """
   Computes fraction of variance that ypred explains about y.
@@ -121,3 +118,19 @@ def get_out_shape(model: nn.Module, in_shape: Tuple[int, ...]) -> Tuple[int, ...
   with torch.no_grad():
     x = torch.randn(*in_shape).unsqueeze(0)
     return model(x).squeeze(0).shape
+
+def count_parameters(model: nn.Module) -> int:
+  """
+  Count the number of parameters in a model
+
+  Parameters
+  ----------
+  model : nn.Module
+      Torch module
+
+  Returns
+  -------
+  int
+      Number of parameters
+  """
+  return sum(p.numel() for p in model.parameters() if p.requires_grad)
