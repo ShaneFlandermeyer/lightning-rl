@@ -16,10 +16,10 @@ class SAC(nn.Module):
                action_shape: Tuple[int, ...],
                gamma: float = 0.99,
                tau: float = 0.005,
-               init_temperature: float = 0.1,
+               init_temperature: float = 0,
                actor_lr: float = 1e-3,
-               critic_lr: float = 1e-3,
-               alpha_lr: float = 1e-4,
+               critic_lr: float = 3e-4,
+               alpha_lr: float = 3e-4,
                ) -> None:
     super().__init__()
     self.actor = actor
@@ -53,14 +53,13 @@ class SAC(nn.Module):
 
   @property
   def alpha(self):
-    return self.log_alpha.exp()
+    return self.log_alpha.exp().item()
 
   def act(self, obs: torch.Tensor, deterministic: bool = False):
-    with torch.no_grad():
-      action, logprobs, mean = self.actor(obs)
-      if deterministic:
-        action = mean
-      return action.cpu().numpy(), logprobs
+    action, logprobs, mean = self.actor(obs)
+    if deterministic:
+      action = mean
+    return action, logprobs
 
   def update_critic(self,
                     obs: torch.Tensor,
@@ -69,7 +68,7 @@ class SAC(nn.Module):
                     next_obs: torch.Tensor,
                     dones: torch.Tensor):
     with torch.no_grad():
-      next_action, next_logprobs, _ = self.actor(next_obs)
+      next_action, next_logprobs = self.act(next_obs, deterministic=False)
       target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
       min_q_next_target = torch.min(
           target_Q1, target_Q2) - self.alpha * next_logprobs
@@ -97,10 +96,10 @@ class SAC(nn.Module):
   def update_actor(self, obs: torch.Tensor):
     # TODO: Detach encoders here if they exist (for both actor and critic)
     # Encoder should only be updated in critic update step
-    actions, logprobs, _ = self.actor(obs)
-    actor_Q1, actor_Q2 = self.critic(obs, actions)
-    actor_Q = torch.min(actor_Q1, actor_Q2)
-    actor_loss = (self.alpha.detach() * logprobs - actor_Q).mean()
+    actions, logprobs = self.act(obs, deterministic=False)
+    Q1, Q2 = self.critic(obs, actions)
+    Q = torch.min(Q1, Q2).view(-1)
+    actor_loss = (self.alpha * logprobs - Q).mean()
 
     self.actor_optimizer.zero_grad()
     actor_loss.backward()
@@ -109,8 +108,10 @@ class SAC(nn.Module):
     info = {"loss/actor_loss": actor_loss.item()}
     return info
 
-  def update_alpha(self, logprobs: torch.Tensor):
-    alpha_loss = (self.alpha*(-logprobs - self.target_entropy).detach()).mean()
+  def update_alpha(self, obs: torch.Tensor):
+    with torch.no_grad():
+      _, logprobs = self.act(obs, deterministic=False)
+    alpha_loss = (-self.log_alpha * (logprobs + self.target_entropy)).mean()
 
     self.log_alpha_optimizer.zero_grad()
     alpha_loss.backward()
@@ -118,7 +119,7 @@ class SAC(nn.Module):
 
     info = {
         "loss/alpha_loss": alpha_loss.item(),
-        "train/alpha": self.alpha.item()
+        "train/alpha": self.alpha,
     }
     return info
 
@@ -129,29 +130,6 @@ class SAC(nn.Module):
 
   def save_model(self, path: str, filename: str):
     torch.save(self.state_dict(), os.path.join(path, f'{filename}.pt'))
-
-
-class Actor(nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.fc1 = nn.Linear(4, 256)
-
-  def forward(self, x):
-    action = torch.rand((1,))
-    logprob = torch.rand((1,))
-    mean = torch.rand((1,))
-    return action, logprob, mean
-
-
-class Critic(nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.fc1 = nn.Linear(4, 256)
-
-  def forward(self, x, action):
-    q1 = torch.rand((1,))
-    q2 = torch.rand((1,))
-    return q1, q2
 
 
 def squashed_gaussian_action(mean: torch.Tensor,
@@ -187,7 +165,8 @@ def squashed_gaussian_action(mean: torch.Tensor,
   squashed_action = torch.tanh(z)
   action = squashed_action * action_scale + action_bias
   # Compute the log probabilities using the change-of-variables formula described here: https://arxiv.org/pdf/1812.05905.pdf
-  log_prob = normal.log_prob(z) - torch.log(1 - squashed_action.pow(2) + 1e-6)
+  log_prob = normal.log_prob(z)
+  log_prob -= torch.log(action_scale * (1 - squashed_action.pow(2)) + 1e-6)
   log_prob = log_prob.sum(1, keepdim=True)
   # Recompute the mean as well, which is useful if you want a deterministic policy after training
   mean = torch.tanh(mean) * action_scale + action_bias

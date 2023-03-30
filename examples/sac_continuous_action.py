@@ -37,7 +37,7 @@ def parse_args():
       help="whether to capture videos of the agent performances (check out `videos` folder)")
 
   # Algorithm specific arguments
-  parser.add_argument("--env-id", type=str, default="HalfCheetah-v2",
+  parser.add_argument("--env-id", type=str, default="Walker2d-v2",
       help="the id of the environment")
   parser.add_argument("--total-timesteps", type=int, default=1000000,
       help="total timesteps of the experiments")
@@ -55,7 +55,7 @@ def parse_args():
       help="timestep to start learning")
   parser.add_argument("--policy-lr", type=float, default=3e-4,
       help="the learning rate of the policy network optimizer")
-  parser.add_argument("--q-lr", type=float, default=3e-4,
+  parser.add_argument("--q-lr", type=float, default=1e-3,
       help="the learning rate of the Q network optimizer")
   parser.add_argument("--policy-frequency", type=int, default=2,
       help="the frequency of training the policy (delayed)")
@@ -87,8 +87,10 @@ def make_env(env_id, seed, idx, capture_video, run_name):
   return thunk
 
 
-LOG_STD_MIN = 2
-LOG_STD_MAX = -5
+LOG_STD_MIN = -5
+LOG_STD_MAX = 2
+
+
 class Actor(nn.Module):
   def __init__(self, env: gym.vector.VectorEnv):
     super().__init__()
@@ -136,7 +138,7 @@ class Critic(nn.Module):
         nn.ReLU(),
         nn.Linear(256, 1),
     )
-    
+
   def forward(self, obs: torch.Tensor, act: torch.Tensor):
     x = torch.cat([obs, act], dim=1)
     return self.Q1(x), self.Q2(x)
@@ -177,7 +179,7 @@ if __name__ == '__main__':
             obs_shape=envs.single_observation_space.shape,
             gamma=args.gamma,
             tau=args.tau,
-            init_temperature=0.1,
+            init_temperature=1,
             actor_lr=args.policy_lr,
             critic_lr=args.q_lr,
             alpha_lr=args.q_lr,
@@ -207,6 +209,7 @@ if __name__ == '__main__':
     else:
       obs_tensor = torch.FloatTensor(obs).to(sac.device)
       actions, _ = sac.act(obs_tensor, deterministic=False)
+      actions = actions.detach().cpu().numpy()
 
     # TRY NOT TO MODIFY: Execute the game and log data
     next_obs, rewards, terminated, truncated, infos = envs.step(actions)
@@ -254,10 +257,6 @@ if __name__ == '__main__':
       dones = torch.Tensor(data.dones).to(device)
 
       # Train critic
-      with torch.no_grad():
-        next_actions, next_logprobs = sac.act(
-            next_observations, deterministic=False)
-
       critic_info = sac.update_critic(obs=observations,
                                       actions=actions,
                                       rewards=rewards,
@@ -269,7 +268,7 @@ if __name__ == '__main__':
       if global_step % args.policy_frequency == 0:
         for _ in range(args.policy_frequency):
           actor_info = sac.update_actor(obs=observations)
-          alpha_info = sac.update_alpha(logprobs=next_logprobs)
+          alpha_info = sac.update_alpha(obs=observations)
           train_info.update(actor_info)
           train_info.update(alpha_info)
 
