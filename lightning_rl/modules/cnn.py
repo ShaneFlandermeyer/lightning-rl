@@ -23,7 +23,7 @@ class NatureCNN(nn.Module):
       layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2)),
       layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
     ])
-    self.out_dim = get_out_shape((c, h, w), self.convs)
+    self.out_dim = get_out_shape(self.convs, (c, h, w))
 
   def forward(self, x):
     for conv in self.convs:

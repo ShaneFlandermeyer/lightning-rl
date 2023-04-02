@@ -8,6 +8,7 @@ from typing import Tuple
 
 import gymnasium as gym
 import numpy as np
+from lightning_rl.common.utils import seed_everything
 from lightning_rl.models.off_policy import SAC
 # import pybullet_envs  # noqa
 import torch
@@ -155,9 +156,7 @@ if __name__ == '__main__':
   )
 
   # TRY NOT TO MODIFY: seeding
-  random.seed(args.seed)
-  np.random.seed(args.seed)
-  torch.manual_seed(args.seed)
+  seed_everything(args.seed)
   torch.backends.cudnn.deterministic = args.torch_deterministic
   device = torch.device("cuda" if torch.cuda.is_available()
                         and args.cuda else "cpu")
